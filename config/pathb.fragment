@@ -1,0 +1,55 @@
+# =============================================================================
+# PATH B overlay - options that are only safe when we ship our own modules
+# =============================================================================
+# Merged by build-nethunter-kernel.sh when PATH_B=1, AFTER
+# config/nethunter_milanf.fragment, so it overrides the "is not set" lines there.
+#
+# Why this is a separate file and not part of the main fragment:
+#
+#   Every option below changes the in-memory layout of a structure that lives in
+#   a widely included header (struct net, struct nf_bridge_info in skbuff.h,
+#   struct nf_conn, struct rtable/struct fib_info). genksyms derives each
+#   exported symbol's CRC from the *type table* of its translation unit, so these
+#   options rehash the CRCs of hundreds of unrelated symbols. The ROM's prebuilt
+#   modules (Wi-Fi, camera, charger, touch, audio) then refuse to load:
+#       wlan.ko: disagrees about version of symbol device_register
+#
+#   Path B solves that by rebuilding the *complete* module set and delivering it
+#   through the vendor_boot ramdisk (lib/modules), which is exactly where this
+#   ROM already keeps its first-stage modules. First-stage init then loads our
+#   modules - which match our kernel - and the ROM's copies on /vendor are no
+#   longer used.
+#
+#   NEVER flash a Path B kernel without its matching vendor_boot modules, and
+#   never flash Path B modules under a Path A kernel.
+#
+# Measured on this device (for the record):
+#   CAN alone              : device_register 0xbae8d216 -> 0xd7721f1f
+#   BRIDGE_NETFILTER alone : device_register 0xbae8d216 -> 0xaa3baaa0
+# =============================================================================
+
+# --- bridge-level netfilter: transparent bridging + iptables over bridges -----
+CONFIG_BRIDGE_NETFILTER=y
+
+# --- xtables extras whose "select"ed options change structs ------------------
+CONFIG_NETFILTER_XT_MATCH_CONNLABEL=y   # selects NF_CONNTRACK_LABELS (struct nf_conn)
+CONFIG_NETFILTER_XT_MATCH_REALM=y       # selects IP_ROUTE_CLASSID (struct rtable/fib)
+
+# --- SocketCAN (CAN badge, SLCAN serial adapters, USB CAN interfaces) --------
+CONFIG_CAN=y
+CONFIG_CAN_RAW=y
+CONFIG_CAN_BCM=y
+CONFIG_CAN_GW=y
+CONFIG_CAN_DEV=y
+CONFIG_CAN_CALC_BITTIMING=y
+CONFIG_CAN_VCAN=y                # virtual CAN interface
+CONFIG_CAN_VXCAN=y               # virtual CAN tunnel
+CONFIG_CAN_SLCAN=y               # LAWICEL/serial CAN adapters (NetHunter SLCAN)
+CONFIG_CAN_EMS_USB=y
+CONFIG_CAN_ESD_USB2=y
+CONFIG_CAN_GS_USB=y
+CONFIG_CAN_KVASER_USB=y
+CONFIG_CAN_MCBA_USB=y
+CONFIG_CAN_PEAK_USB=y
+CONFIG_CAN_UCAN=y
+# CONFIG_CAN_J1939 is not set

@@ -1,0 +1,29 @@
+# =============================================================================
+# init.nethunter.rc - imported by init.rc (added by the AnyKernel flash)
+# =============================================================================
+# Device : Moto G Stylus 5G (2022) "milanf" / SM6375
+# Kernel : 5.4.302 (LineageOS 23.2 / Android 16)
+#
+# Keep this file minimal: everything here runs as part of the Android boot
+# sequence, and Android 16 enforces SELinux + verified boot, so /system cannot
+# be remounted read-write and debugfs is not available on this kernel
+# (CONFIG_DEBUG_FS is not set in the stock config).
+#
+# HID gadget permissions (/dev/hidg*) are NOT set here on purpose - they are
+# installed as ueventd.rc rules by anykernel.sh, which is the correct Android
+# mechanism and works even though the nodes only appear once the gadget is
+# configured from userspace.
+# =============================================================================
+
+on post-fs-data
+    # /data is mounted at this point; `on early-init` would be too early
+    mkdir /data/local/nhsystem 0755 root root
+    mkdir /data/local/nhsystem/kali-arm64 0755 root root
+    mkdir /data/local/nhsystem/.krnl 0755 root root
+
+on property:sys.boot_completed=1
+    # convenience bind mount used by the NetHunter app and the chroot scripts
+    exec - -- /system/bin/sh -c "mount -o bind /data/local/nhsystem/kali-arm64 /data/local/nhsystem/kali 2>/dev/null || true"
+
+on property:sys.shutdown=poweroff
+    exec - -- /system/bin/sh -c "umount /data/local/nhsystem/kali 2>/dev/null || true"

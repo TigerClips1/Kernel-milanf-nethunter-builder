@@ -1,0 +1,65 @@
+---
+# =============================================================================
+# Kali NetHunter Devices entry for Moto G Stylus 5G (2022) - milanf
+# =============================================================================
+# This entry is used by kali-nethunter-kernels/devices.yml and the
+# kali-nethunter-installer build system to register this device.
+# To add this entry to the main devices.yml:
+#   Copy this block into:
+#   https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-kernels/-/blob/main/devices.yml
+
+- milanf:
+    model  : Motorola Moto G Stylus 5G (2022)
+    images :
+      - id     : milanf-los
+        name   : Moto G Stylus 5G (2022) (LineageOS 23.2)
+        android: sixteen
+        rootfs : full
+        note   : >
+          External USB Wi-Fi adapter required for monitor mode.  Kernel is
+          flashed to the boot partition only (AnyKernel3); the ROM's kernel
+          modules in vendor_boot.img are kept, so the NetHunter kernel must be
+          built with the same release string as the ROM kernel or Wi-Fi/touch/
+          charging modules will refuse to load.  All NetHunter features are
+          built into the kernel (no modules shipped with this zip).
+          Module compatibility is checked with tools/verify-module-crc.sh
+          before flashing.
+
+    kernels:
+      - id          : milanf-los
+        description : Moto G Stylus 5G (2022) for LineageOS 23.2
+        kernelstring: NetHunter Kernel for Moto G Stylus 5G (2022)
+        devicenames : milanf,XT2215-1,XT2215-3,XT2215-4
+        arch        : arm64
+        ramdisk     : auto
+        resolution  : 1080x2460
+        block       : /dev/block/bootdevice/by-name/boot
+
+        # Kernel version of the ROM this is built against
+        # (release string 5.4.302-moto-gc8bc4b74db62).
+        version     : 5.4.302
+        supersu     : systemless
+
+        # No kernel modules are shipped with this zip: the ROM's prebuilt
+        # modules in vendor_boot.img stay in use, and everything NetHunter
+        # needs is built into the Image itself.
+        modules     : 0
+
+        # A/B device (boot_a / boot_b): AnyKernel3 handles the active slot.
+        slot_device : 1
+
+        versions    :
+          - android    : sixteen
+            linux      : 5.4.302
+            description: LineageOS 23.2 (Android 16)
+            author     : TigerClips1
+            source     : 'git clone https://github.com/LineageOS/android_kernel_motorola_sm6375 -b lineage-23.2'
+            # Path A (the default, no PATH_B) is the boot-partition-only kernel:
+            # everything listed in `features` is built into the Image.
+            # Path B (PATH_B=1) additionally enables the options the Kali NetHunter
+            # kernel docs list and delivers the whole module set through the
+            # vendor_boot ramdisk; its extra features are CAN/CANable, CFG80211_WEXT,
+            # MAC80211_MESH, SYSVIPC, ATH6KL, CARL9170, MT7601U, ZD1211RW, ZD1201,
+            # SDR/RTL-SDR, HackRF, AirSpy, BT_HCIUART/MRVL/ATH3K/BNEP, CDC_OBEX/EEM.
+            # See README -> "NetHunter documentation compliance".
+            features   : [HID, BadUSB, Injection, CDROM, mac80211, USBMon, IPSET, NFS, CAN, SLCAN, BTUSB, BT_RFCOMM, UART H4, RT2800USB, ATH9K_HTC, MT76, RTL8xxxU, RTL8187, RTL8192CU, CH341, CP210X, F81232, RNDIS, CDC_ECM]

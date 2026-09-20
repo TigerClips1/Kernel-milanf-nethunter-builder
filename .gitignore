@@ -1,0 +1,45 @@
+# =============================================================================
+#  nethunter-milanf - what is *not* in this repository
+# =============================================================================
+#  The build driver fetches or generates everything below, so none of it is
+#  committed: the repo stays a few hundred KB of scripts, fragments and docs.
+#
+#  NOTE: git does not allow a comment on the same line as a pattern - every
+#  pattern below therefore sits on its own line.
+
+#  Fetched by ./build-nethunter-kernel.sh source | toolchains
+#  (kernel source ~900 MB, clang prebuilt ~3.8 GB, AnyKernel3, tarballs)
+kernel/
+toolchains/
+anykernel3/
+downloads/
+
+#  Produced by config | build | modules | payload | zip
+output/
+out/
+out-*/
+rom-modules/
+*.img
+*.zip
+*.ko
+*.ko.unsigned
+*.o
+*.mod
+*.symvers
+Module.symvers
+*.log
+*.tar.xz
+*.tar.gz
+
+#  Editor / OS noise
+*.tmp
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+__pycache__/
+*.pyc
+node_modules/
+.vscode/
+
