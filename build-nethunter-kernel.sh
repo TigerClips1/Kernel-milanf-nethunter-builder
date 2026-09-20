@@ -68,8 +68,8 @@ SOC="sm6375"
 PLATFORM="holi"
 ARCH="arm64"
 KERNEL_VERSION="5.4"
-KERNEL_BRANCH="lineage-23.2"
-KERNEL_REPO="https://github.com/LineageOS/android_kernel_motorola_sm6375"
+KERNEL_BRANCH="nethunter"
+KERNEL_REPO="https://github.com/TigerClips1/kali-nethunter-milanf-kernel"
 AK3_REPO="https://github.com/osm0sis/AnyKernel3"
 
 # Kernel commit the ROM kernel was built from. `uname -r` on the device ends in

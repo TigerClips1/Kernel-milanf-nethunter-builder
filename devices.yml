@@ -53,7 +53,7 @@
             linux      : 5.4.302
             description: LineageOS 23.2 (Android 16)
             author     : TigerClips1
-            source     : 'git clone https://github.com/LineageOS/android_kernel_motorola_sm6375 -b lineage-23.2'
+            source     : 'git clone https://github.com/TigerClips1/kali-nethunter-milanf-kernel -b nethunter'
             # Path A (the default, no PATH_B) is the boot-partition-only kernel:
             # everything listed in `features` is built into the Image.
             # Path B (PATH_B=1) additionally enables the options the Kali NetHunter

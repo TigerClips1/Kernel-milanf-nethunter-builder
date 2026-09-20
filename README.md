@@ -1049,7 +1049,7 @@ output/                            build logs, built modules, images, flashable 
 
 * Kali NetHunter docs - <https://www.kali.org/docs/nethunter/>
 * LineageOS device wiki - <https://wiki.lineageos.org/devices/milanf/>
-* Kernel source - <https://github.com/LineageOS/android_kernel_motorola_sm6375> (`lineage-23.2`)
+* Kernel source - <https://github.com/TigerClips1/kali-nethunter-milanf-kernel> (`nethunter`)
 * Device tree - <https://github.com/LineageOS/android_device_motorola_milanf>
 * AnyKernel3 - <https://github.com/osm0sis/AnyKernel3>
 
