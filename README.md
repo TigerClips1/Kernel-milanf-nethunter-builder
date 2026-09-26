@@ -9,7 +9,7 @@
 
 > **Device:** milanf
 > **SoC:** Snapdragon 695 5G (SM6375)
-> **Kernel:** 5.4.302 (DarkHunterMoon-Reborn)
+> **Kernel:** 5.4.302 (nethunter-milanf)
 > **Tested ROM:** LineageOS 23.2
 
 ---
