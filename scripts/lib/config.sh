@@ -7,16 +7,17 @@ KERNEL_DEVICE="${KERNEL_DEVICE:-milanf}"
 # Use the LineageOS milanf 5.4.302 source tree as the baseline. The checked-in
 # clone is pinned to the same commit as the user's LineageOS tree; override
 # KERNEL_DIR to build against another checkout.
-KERNEL_BRANCH="${KERNEL_BRANCH:-lineage-23.2}"
+KERNEL_BRANCH="${KERNEL_BRANCH:-nethunter}"
 KERNEL_VERSION="${KERNEL_VERSION:-5.4.302}"
-DEVICE_CONFIG="${DEVICE_CONFIG:-/home/tigerclips1/config}"
-STOCK_BOOT_IMAGE="${STOCK_BOOT_IMAGE:-}"
+DEVICE_CONFIG="${DEVICE_CONFIG:-config/config}"
+# Path to the stock boot image used for repacking. Allows override via env var.
+STOCK_BOOT_IMAGE="${STOCK_BOOT_IMAGE:-${REPO_ROOT}/Required_los_image-nethunter/boot.img}"
 JOBS="${JOBS:-$(nproc)}"
 SKIP_CLONE="${SKIP_CLONE:-}"
 
 # ZIP naming — override via env vars if needed
 KERNEL_NAME="${KERNEL_NAME:-LineageOS_milanf}"
-KERNEL_AUTHOR="${KERNEL_AUTHOR:-Community}"
+KERNEL_AUTHOR="${KERNEL_AUTHOR:-TigerClips1}"
 ROM_TARGET="${ROM_TARGET:-LineageOS-23.2}"       # e.g. LineageOS-23.2, Aosp14
 
 # Kernel 5.4 requires KernelSU Next's built-in legacy driver. The current
@@ -59,7 +60,7 @@ AK3_DIR="${REPO_ROOT}/sources/anykernel3"
 OUT_DIR="${REPO_ROOT}/out/kernel"
 MODULES_DIR="${REPO_ROOT}/out/modules"
 ZIP_DIR="${REPO_ROOT}/out/zip"
-STOCK_VENDOR_BOOT_IMAGE="${STOCK_VENDOR_BOOT_IMAGE:-${HOME}/Downloads/los-stock/vendor_boot.img}"
+STOCK_VENDOR_BOOT_IMAGE="${STOCK_VENDOR_BOOT_IMAGE:-Required_los_image-nethunter/vendor_boot.img}"
 STOCK_VENDOR_MODULES_LOAD="${STOCK_VENDOR_MODULES_LOAD:-${REPO_ROOT}/out/vendor-repack/vendor-tree/modules/modules.load}"
 MKBOOTIMG_DIR="${MKBOOTIMG_DIR:-${LINEAGEOS_ROOT}/system/tools/mkbootimg}"
 
@@ -76,7 +77,7 @@ ROM_FRAGMENTS=(
 )
 NETHUNTER_CONFIG="${CONFIG_DIR}/milanf_nethunter.config"
 
-KERNEL_REPO="${KERNEL_REPO:-https://github.com/LineageOS/android_kernel_motorola_sm6375}"
+KERNEL_REPO="${KERNEL_REPO:-https://github.com/TigerClips1/kali-nethunter-milanf-kernel}"
 AK3_REPO="https://github.com/osm0sis/AnyKernel3"
 CLANG_REPO="https://github.com/ZyCromerZ/Clang"
 CLANG_BRANCH="17"

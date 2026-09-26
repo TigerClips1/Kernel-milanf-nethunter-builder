@@ -10,7 +10,7 @@
 > **Device:** milanf
 > **SoC:** Snapdragon 695 5G (SM6375)
 > **Kernel:** 5.4.302 (nethunter-milanf)
-> **Tested ROM:** LineageOS 23.2
+> **Tested ROM:** lineage-23.2-20260917-nightly
 
 ---
 
