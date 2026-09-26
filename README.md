@@ -2,7 +2,6 @@
 <p align="center"><i>NetHunter Kernel for Motorola Moto G Stylus 5G 2022 (milanf)</i></p>
 
 <p align="center">
-  <a href="https://github.com/edbastida/Kernel_Stone_DarkHuntermoon-Reborn/releases/latest"><img src="https://img.shields.io/github/v/release/edbastida/Kernel_Stone_DarkHuntermoon-Reborn?style=flat-square" alt="Release" /></a>
   <img src="https://img.shields.io/badge/kernel-5.4.302-blue?style=flat-square" alt="Kernel" />
   <img src="https://img.shields.io/badge/Android-16-green?style=flat-square" alt="Android" />
   <img src="https://img.shields.io/badge/external%20WiFi%20modules-included-success?style=flat-square" alt="External WiFi modules" />
