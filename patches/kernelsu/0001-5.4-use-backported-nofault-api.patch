@@ -1,0 +1,18 @@
+diff --git a/kernel/hook/patch_memory.c b/kernel/hook/patch_memory.c
+index d9e40ccf..4366676c 100644
+--- a/kernel/hook/patch_memory.c
++++ b/kernel/hook/patch_memory.c
+@@ -8,13 +8,6 @@
+ #include "patch_memory.h"
+ #include <linux/version.h>
+ 
+-// copy_to_kernel_nofault() was introduced in 5.8; before that it was
+-// named probe_kernel_write()
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0)
+-#define copy_to_kernel_nofault(dst, src, size)                                 \
+-	probe_kernel_write((dst), (src), (size))
+-#endif
+-
+ #if defined(__aarch64__)
+ 
+ /* SPDX-License-Identifier: GPL-2.0-only */

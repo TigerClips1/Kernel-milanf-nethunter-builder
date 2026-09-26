@@ -1,11 +1,5 @@
-# AnyKernel3 Ramdisk Mod Script
-# osm0sis @ xda-developers
-# NetHunter additions for Moto G Stylus 5G (2022) - milanf / SM6375
-#
-# This file REPLACES the anykernel.sh that ships with AnyKernel3.
-# It must stay compatible with the official AK3 core (tools/ak3-core.sh),
-# which is cloned from https://github.com/osm0sis/AnyKernel3 by the build
-# script - do not replace it with a hand-rolled flasher.
+## AnyKernel3 Ramdisk Mod Script — KernelSU Next variant
+## osm0sis @ xda-developers
 
 ## AnyKernel setup
 # begin properties
@@ -24,94 +18,96 @@ supported.versions=
 supported.patchlevels=
 '; } # end properties
 
-# boot shell variables
-#
-# AnyKernel3's core (tools/ak3-core.sh) reads these as UPPERCASE names. Older
-# AK3 releases also accepted lowercase (block=, is_slot_device=, ...), but the
-# current core does not - lowercase leaves $BLOCK empty and the installer
-# aborts in recovery with:
-#     Unable to determine  partition. Aborting...
-# So these MUST stay uppercase.
-#
-# milanf is A/B: the core appends $SLOT itself, so boot resolves to boot_a.
+# LineageOS and the custom kernel are installed on slot B. TWRP may be running
+# from either slot; this package always targets B explicitly.
 BLOCK=/dev/block/bootdevice/by-name/boot;
 IS_SLOT_DEVICE=1;
+SLOT_SELECT=active;
 RAMDISK_COMPRESSION=auto;
 PATCH_VBMETA_FLAG=auto;
 
 ## AnyKernel methods (DO NOT CHANGE)
-# import patching functions/variables - see for reference
 . tools/ak3-core.sh;
 
-## AnyKernel install
-# dump_boot unpacks the CURRENT boot.img from the device into $RAMDISK and
-# keeps everything we do not replace: the device tree blob, the rest of the
-# ramdisk and vendor_boot.img (with the ROM's kernel modules) are untouched.
-dump_boot;
+## The custom kernel and vendor_boot are a matched pair on slot B. Do not
+## derive the destination from TWRP's active slot: recovery may run from A
+## while the bootloader still reports B as active (or vice versa).
+SLOT="_b";
+BLOCK="/dev/block/bootdevice/by-name/boot_b";
 
-## ---------------------------------------------------------------------------
-## NetHunter additions
-## ---------------------------------------------------------------------------
-
-# IMPORTANT - verified on milanf (2026-09-19) by unpacking the stock boot image:
-# this device uses a GENERIC (GKI-style) boot ramdisk:
-#     kernel 39328256 bytes, ramdisk 19452257 bytes (lz4), header v3
-#     contains   : init, first_stage_ramdisk/, .backup/.magisk, ...
-#     does NOT contain: init.rc, ueventd.rc
-# The real rc files live on the system/vendor partitions
-# (/system/etc/ueventd.rc, /vendor/etc/ueventd.rc), so there is no init.rc here
-# to hook "import /init.nethunter.rc" into and no ueventd.rc to add /dev/hidg*
-# rules to.
-#
-# That is fine: the kernel already provides everything NetHunter needs
-# (CONFIG_USB_CONFIGFS_F_HID, ipset, the external Wi-Fi drivers, ...) and on
-# this device the Kali chroot and the HID gadget are set up by the NetHunter
-# app together with Magisk (Magisk is installed - .backup/.magisk in this very
-# ramdisk - and /data/local/nhsystem already exists). A kernel-only flash is
-# therefore complete.
-#
-# The hooks below are kept for non-GKI layouts, where init.rc IS in the ramdisk,
-# and are skipped cleanly here.
-if [ -f $RAMDISK/init.rc ]; then
-	# 1) NetHunter ramdisk files (init.nethunter.rc, ...)
-	if [ -d $AKHOME/ramdisk-patch ]; then
-		ui_print "- Installing NetHunter ramdisk files";
-		cp -af $AKHOME/ramdisk-patch/. $RAMDISK/;
-		if [ -f $RAMDISK/init.nethunter.rc ]; then
-			chown 0:0 $RAMDISK/init.nethunter.rc;
-			chmod 0750 $RAMDISK/init.nethunter.rc;
-		fi;
-	fi;
-
-	# 2) make init import the NetHunter rc file
-	if ! grep -q "init.nethunter.rc" $RAMDISK/init.rc; then
-		ui_print "- Adding 'import /init.nethunter.rc' to init.rc";
-		echo "" >> $RAMDISK/init.rc;
-		echo "import /init.nethunter.rc" >> $RAMDISK/init.rc;
-	fi;
-
-	# 3) HID gadget permissions (/dev/hidg*) for BadUSB / HID attacks
-	if [ -f $RAMDISK/ueventd.rc ] && ! grep -q "/dev/hidg" $RAMDISK/ueventd.rc; then
-		ui_print "- Adding /dev/hidg* rules to ueventd.rc";
-		echo "" >> $RAMDISK/ueventd.rc;
-		echo "# NetHunter HID gadget" >> $RAMDISK/ueventd.rc;
-		echo "/dev/hidg0 0666 root root" >> $RAMDISK/ueventd.rc;
-		echo "/dev/hidg1 0666 root root" >> $RAMDISK/ueventd.rc;
-		echo "/dev/hidg2 0666 root root" >> $RAMDISK/ueventd.rc;
-	fi;
-else
-	ui_print "- Generic (GKI-style) ramdisk: no init.rc / ueventd.rc to patch";
-	ui_print "  NetHunter userspace (Kali chroot, HID gadget) is handled by the";
-	ui_print "  NetHunter app + Magisk on this device - the kernel is self-contained";
-fi;
-
-# 4) extra, optional patches shipped in ak_patches/
-for p in $(find $AKHOME/ak_patches -name '*.sh' 2>/dev/null); do
-	ui_print "- Applying $p";
-	. $p;
-done;
+## ── Banner + educational-use warning ────────────────────────────────────────
+ui_print " ";
+ui_print "================================================";
+ui_print "                                                ";
+ui_print "   ___    _ _              _   _    _           ";
+ui_print "  | __|__| | |__  __ _ ___| |_(_)__| |__ _      ";
+ui_print "  | _|/ _\` | '_ \\/ _\` (_-<  _| / _\` / _\` |     ";
+ui_print "  |___\\__,_|_.__/\\__,_/__/\\__|_\\__,_\\__,_|     ";
+ui_print "                                                ";
+ui_print "    >>  D A R K   H U N T E R   M O O N  <<     ";
+ui_print "        ~ Reborn Edition · KernelSU Next ~     ";
+ui_print "                                                ";
+ui_print "    NetHunter Kernel  ·  Linux 5.4.302          ";
+ui_print "    Motorola G Stylus 5G 2022 (milanf)         ";
+ui_print "                                                ";
+ui_print "    Root: KernelSU Next built into this kernel. ";
+ui_print "                                                ";
+ui_print "================================================";
+ui_print " ";
+ui_print "  /!\\  AVISO  /  WARNING                        ";
+ui_print "                                                ";
+ui_print "  Este kernel se distribuye EXCLUSIVAMENTE      ";
+ui_print "  con fines educativos y de investigacion en    ";
+ui_print "  seguridad. El uso contra sistemas o redes     ";
+ui_print "  sin autorizacion expresa es ILEGAL. El        ";
+ui_print "  autor (Edbastida) no se responsabiliza del    ";
+ui_print "  mal uso de este software.                     ";
+ui_print "                                                ";
+ui_print "  Provided for EDUCATIONAL and SECURITY         ";
+ui_print "  RESEARCH purposes only. Unauthorized use      ";
+ui_print "  against any system or network is illegal.     ";
+ui_print "  The author assumes no liability for misuse.   ";
+ui_print "                                                ";
+ui_print "================================================";
+ui_print " ";
 
 ## AnyKernel install
-write_boot;
+[ -e "$BLOCK" ] || abort "Target boot_b partition was not found; aborting without flashing.";
+ui_print "Target slot: B (fixed)";
+STOCK_BOOT_IMAGE="$AKHOME/stock_boot.img";
+[ -s "$STOCK_BOOT_IMAGE" ] || abort "Matching stock LineageOS boot.img is missing. Refusing to reuse the recovery boot ramdisk.";
+CUSTOM_VENDOR_BOOT_IMAGE="$AKHOME/vendor_boot.img";
+[ -s "$CUSTOM_VENDOR_BOOT_IMAGE" ] || abort "Matching custom vendor_boot.img is missing. Refusing to flash only the kernel.";
+VENDOR_BOOT_BLOCK="/dev/block/bootdevice/by-name/vendor_boot_b";
+[ -e "$VENDOR_BOOT_BLOCK" ] || abort "Target vendor_boot partition $VENDOR_BOOT_BLOCK was not found.";
+[ "$(wc -c < "$CUSTOM_VENDOR_BOOT_IMAGE")" -le "$(wc -c < "$VENDOR_BOOT_BLOCK")" ] || abort "Custom vendor_boot.img is larger than $VENDOR_BOOT_BLOCK.";
+FLASH_BLOCK="$BLOCK";
+BLOCK="$STOCK_BOOT_IMAGE";
+split_boot;
+BLOCK="$FLASH_BLOCK";
+flash_boot;
+flash_generic vendor_boot;
 
+## Install the bundled USB Wi-Fi driver module for KernelSU Next.
+install_nethunter_module() {
+  local SRC="$AKHOME/ksu_module";
+  local DEST="/data/adb/modules/nethunter-realtek-drivers";
+
+  [ -d "$SRC" ] || { ui_print " " "Warning: KSU Next driver module is missing from this ZIP."; return 0; };
+  if [ ! -d /data/media/0 ]; then
+    ui_print " " "Warning: /data is not decrypted; USB Wi-Fi module was not installed.";
+    ui_print " " "You can install it later from KernelSU Next Manager.";
+    return 0;
+  fi;
+
+  ui_print " " "Installing USB Wi-Fi drivers as a KernelSU Next module...";
+  if ! mkdir -p "$DEST" || ! cp -rf "$SRC"/. "$DEST"/; then
+    ui_print " " "Warning: could not copy the USB Wi-Fi module; install it later from KernelSU Next Manager.";
+    return 0;
+  fi;
+  set_perm_recursive 0 0 0755 0644 "$DEST";
+  [ -f "$DEST/service.sh" ] && set_perm 0 0 0755 "$DEST/service.sh";
+  ui_print " " "USB Wi-Fi driver module installed.";
+}
+install_nethunter_module;
 ## end install

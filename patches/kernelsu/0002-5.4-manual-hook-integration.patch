@@ -1,0 +1,173 @@
+diff --git a/fs/exec.c b/fs/exec.c
+--- a/fs/exec.c
++++ b/fs/exec.c
+@@ -1920,13 +1920,24 @@
+ 	return __do_execve_file(AT_FDCWD, NULL, argv, envp, 0, file);
+ }
+ 
++#ifdef CONFIG_KSU
++__attribute__((hot))
++extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr,
++				void *argv, void *envp, int *flags);
++#endif
++
+ int do_execve(struct filename *filename,
+ 	const char __user *const __user *__argv,
+ 	const char __user *const __user *__envp)
+ {
++	int fd = AT_FDCWD;
++	int flags = 0;
+ 	struct user_arg_ptr argv = { .ptr.native = __argv };
+ 	struct user_arg_ptr envp = { .ptr.native = __envp };
+-	return do_execveat_common(AT_FDCWD, filename, argv, envp, 0);
++#ifdef CONFIG_KSU
++	ksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);
++#endif
++	return do_execveat_common(fd, filename, argv, envp, flags);
+ }
+ 
+ int do_execveat(int fd, struct filename *filename,
+@@ -1936,7 +1947,9 @@
+ {
+ 	struct user_arg_ptr argv = { .ptr.native = __argv };
+ 	struct user_arg_ptr envp = { .ptr.native = __envp };
+-
++#ifdef CONFIG_KSU
++	ksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);
++#endif
+ 	return do_execveat_common(fd, filename, argv, envp, flags);
+ }
+ 
+@@ -1953,7 +1966,12 @@
+ 		.is_compat = true,
+ 		.ptr.compat = __envp,
+ 	};
+-	return do_execveat_common(AT_FDCWD, filename, argv, envp, 0);
++	int fd = AT_FDCWD;
++	int flags = 0;
++#ifdef CONFIG_KSU
++	ksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);
++#endif
++	return do_execveat_common(fd, filename, argv, envp, flags);
+ }
+ 
+ static int compat_do_execveat(int fd, struct filename *filename,
+@@ -1969,6 +1987,9 @@
+ 		.is_compat = true,
+ 		.ptr.compat = __envp,
+ 	};
++#ifdef CONFIG_KSU
++	ksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);
++#endif
+ 	return do_execveat_common(fd, filename, argv, envp, flags);
+ }
+ #endif
+diff --git a/fs/open.c b/fs/open.c
+--- a/fs/open.c
++++ b/fs/open.c
+@@ -440,8 +440,17 @@
+ 	return res;
+ }
+ 
++#ifdef CONFIG_KSU
++__attribute__((hot))
++extern int ksu_handle_faccessat(int *dfd, const char __user **filename_user,
++				int *mode, int *flags);
++#endif
++
+ SYSCALL_DEFINE3(faccessat, int, dfd, const char __user *, filename, int, mode)
+ {
++#ifdef CONFIG_KSU
++	ksu_handle_faccessat(&dfd, &filename, &mode, NULL);
++#endif
+ 	return do_faccessat(dfd, filename, mode);
+ }
+ 
+diff --git a/fs/read_write.c b/fs/read_write.c
+--- a/fs/read_write.c
++++ b/fs/read_write.c
+@@ -443,10 +443,17 @@
+ }
+ EXPORT_SYMBOL_NS(kernel_read, ANDROID_GKI_VFS_EXPORT_ONLY);
+ 
++#ifdef CONFIG_KSU
++extern int ksu_handle_vfs_read(struct file **file_ptr, char __user **buf_ptr,
++				size_t *count_ptr, loff_t **pos_ptr);
++#endif
++
+ ssize_t vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos)
+ {
+ 	ssize_t ret;
+-
++#ifdef CONFIG_KSU
++	ksu_handle_vfs_read(&file, &buf, &count, &pos);
++#endif
+ 	if (!(file->f_mode & FMODE_READ))
+ 		return -EBADF;
+ 	if (!(file->f_mode & FMODE_CAN_READ))
+diff --git a/fs/stat.c b/fs/stat.c
+--- a/fs/stat.c
++++ b/fs/stat.c
+@@ -357,12 +357,23 @@
+ 	return cp_new_stat(&stat, statbuf);
+ }
+ 
++#ifdef CONFIG_KSU
++__attribute__((hot))
++extern int ksu_handle_stat(int *dfd, const char __user **filename_user,
++				int *flags);
++extern void ksu_handle_newfstat_ret(unsigned int *fd,
++					struct stat __user **statbuf_ptr);
++#endif
++
+ #if !defined(__ARCH_WANT_STAT64) || defined(__ARCH_WANT_SYS_NEWFSTATAT)
+ SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
+ 		struct stat __user *, statbuf, int, flag)
+ {
+ 	struct kstat stat;
+ 	int error;
++#ifdef CONFIG_KSU
++	ksu_handle_stat(&dfd, &filename, &flag);
++#endif
+ 
+ 	error = vfs_fstatat(dfd, filename, &stat, flag);
+ 	if (error)
+@@ -376,8 +387,13 @@
+ 	struct kstat stat;
+ 	int error = vfs_fstat(fd, &stat);
+ 
+-	if (!error)
++	if (!error) {
+ 		error = cp_new_stat(&stat, statbuf);
++#ifdef CONFIG_KSU
++		if (!error)
++			ksu_handle_newfstat_ret(&fd, &statbuf);
++#endif
++	}
+ 
+ 	return error;
+ }
+diff --git a/kernel/reboot.c b/kernel/reboot.c
+--- a/kernel/reboot.c
++++ b/kernel/reboot.c
+@@ -310,12 +310,20 @@
+  *
+  * reboot doesn't sync: do that yourself before calling this.
+  */
++#ifdef CONFIG_KSU
++extern int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
++				 void __user **arg);
++#endif
++
+ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
+ 		void __user *, arg)
+ {
+ 	struct pid_namespace *pid_ns = task_active_pid_ns(current);
+ 	char buffer[256];
+ 	int ret = 0;
++#ifdef CONFIG_KSU
++	ksu_handle_sys_reboot(magic1, magic2, cmd, &arg);
++#endif
+ 
+ 	/* We only trust the superuser with rebooting the system. */
+ 	if (!ns_capable(pid_ns->user_ns, CAP_SYS_BOOT))

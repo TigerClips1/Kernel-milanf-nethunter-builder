@@ -1,0 +1,8 @@
+diff --git a/drivers/usb/typec/mmi_tcpc/rt_pd_manager.c b/drivers/usb/typec/mmi_tcpc/rt_pd_manager.c
+index a3920a349..b800ea19e 100644
+--- a/drivers/usb/typec/mmi_tcpc/rt_pd_manager.c
++++ b/drivers/usb/typec/mmi_tcpc/rt_pd_manager.c
+@@ -35,2 +35,2 @@
+-#define PROBE_CNT_MAX			3
++#define PROBE_CNT_MAX			15
+ #else
