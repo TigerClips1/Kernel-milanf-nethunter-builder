@@ -143,7 +143,7 @@ id=nethunter-realtek-drivers
 name=NetHunter Realtek Drivers
 version=v1.0-${BUILD_DATE}
 versionCode=${BUILD_DATE}
-author=Community
+author=TigerClips1
 description=RTL8188EUS and RTL88x2BU USB Wi-Fi drivers for milanf
 EOF
 
