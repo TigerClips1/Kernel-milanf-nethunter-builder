@@ -3,9 +3,9 @@ set -euo pipefail
 source "$(dirname "$0")/lib/config.sh"
 source "$(dirname "$0")/lib/utils.sh"
 
-banner "Step 06 — Configure Kernel"
+banner "Step 05 — Configure Kernel"
 
-is_step_done "06" && { log "Step 06 already done, skipping."; exit 0; }
+is_step_done "05" && { log "Step 05 already done, skipping."; exit 0; }
 
 [[ -d "${KERNEL_DIR}/.git" ]] || die "Kernel source not found. Run steps 02-05 first."
 [[ -f "${NETHUNTER_CONFIG}" ]] || die "NetHunter config not found: ${NETHUNTER_CONFIG}"
@@ -72,9 +72,19 @@ else
 fi
 
 log "Step 3: Resolving dependencies (olddefconfig)..."
-make O="${OUT_DIR}" ARCH=arm64 "${KCC[@]}" olddefconfig
-check_error "olddefconfig failed"
-ok "Config finalized"
+    make O="${OUT_DIR}" ARCH=arm64 "${KCC[@]}" olddefconfig
+    check_error "olddefconfig failed"
+    ok "Config finalized"
+    # Enable core CAN subsystem and specific CAN drivers as modules
+    # The base QGKI config disables CAN entirely, so we must first enable the
+    # core CAN framework before adding individual driver options.
+    echo "CONFIG_CAN=m" >> "${OUT_DIR}/.config"
+    echo "CONFIG_CAN_DEV=m" >> "${OUT_DIR}/.config"
+    echo "CONFIG_CAN_ISOTP=m" >> "${OUT_DIR}/.config"
+    echo "CONFIG_CAN_USB=m" >> "${OUT_DIR}/.config"
+    echo "CONFIG_CAN_KVASER_USB=m" >> "${OUT_DIR}/.config"
+    echo "CONFIG_CAN_PEAK_USB=m" >> "${OUT_DIR}/.config"
+    echo "CONFIG_CAN_UCAN=m" >> "${OUT_DIR}/.config"
 popd > /dev/null
 
 log "Verifying critical config options..."
@@ -101,5 +111,5 @@ if grep -q '^CONFIG_KSU_SYSCALL_TABLE_HOOK=y' "${CONFIG_FILE}"; then
 fi
 ok "CONFIG_KSU_SYSCALL_TABLE_HOOK is disabled"
 
-mark_step_done "06"
-ok "Step 06 complete."
+mark_step_done "05"
+ok "Step 05 complete."

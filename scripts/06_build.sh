@@ -3,12 +3,42 @@ set -euo pipefail
 source "$(dirname "$0")/lib/config.sh"
 source "$(dirname "$0")/lib/utils.sh"
 
-banner "Step 07 — Compile Kernel"
+banner "Step 06 — Compile Kernel"
 
-is_step_done "07" && { log "Step 07 already done, skipping."; exit 0; }
+is_step_done "06" && { log "Step 06 already done, skipping."; exit 0; }
 
-[[ -d "${KERNEL_DIR}/.git" ]] || die "Kernel source not found. Run steps 02-06 first."
-[[ -f "${OUT_DIR}/.config" ]] || die ".config not found. Run step 06 first."
+[[ -d "${KERNEL_DIR}/.git" ]] || die "Kernel source not found. Run steps 02-05 first."
+if [[ ! -f "${OUT_DIR}/.config" ]]; then
+    warn ".config not found in ${OUT_DIR}; running step 05 to generate the kernel configuration first."
+    bash "$(dirname "$0")/05_configure.sh"
+fi
+[[ -f "${OUT_DIR}/.config" ]] || die ".config not found after step 05. Run step 05 first, then rerun step 06."
+
+# Ensure CAN driver symbols are enabled in the configuration before building.
+# These may be missing if step 05 was previously run without adding them.
+CONFIG_FILE="${OUT_DIR}/.config"
+append_config() {
+    local opt="$1" val="$2"
+    if ! grep -q "^${opt}=" "${CONFIG_FILE}"; then
+        echo "${opt}=${val}" >> "${CONFIG_FILE}"
+        log "Added missing ${opt}=${val} to kernel config"
+    else
+        # If present but not set as desired, adjust it.
+        local current=$(grep "^${opt}=" "${CONFIG_FILE}" | cut -d= -f2)
+        if [[ "$current" != "$val" ]]; then
+            sed -i "s/^${opt}=.*/${opt}=${val}/" "${CONFIG_FILE}"
+            log "Updated ${opt} from $current to $val in kernel config"
+        fi
+    fi
+}
+
+append_config "CONFIG_CAN" "m"
+append_config "CONFIG_CAN_DEV" "m"
+append_config "CONFIG_CAN_ISOTP" "m"
+append_config "CONFIG_CAN_USB" "m"
+append_config "CONFIG_CAN_KVASER_USB" "m"
+append_config "CONFIG_CAN_PEAK_USB" "m"
+append_config "CONFIG_CAN_UCAN" "m"
 
 export PATH="${CLANG_DIR}/bin:${PATH}"
 CLANG_BIN="$(detect_clang)" || die "No suitable clang toolchain found. Expected AOSP clang 21 / r563880c or a compatible clang-21 binary."
@@ -25,8 +55,8 @@ log "Using ${JOBS} parallel jobs"
 # Preserve the stock kernel release so prebuilt vendor modules keep matching.
 BUILD_TS="$(LC_ALL=C date -u)"
 export KBUILD_BUILD_TIMESTAMP="${BUILD_TS}"
-export KBUILD_BUILD_USER="Edbastida"
-export KBUILD_BUILD_HOST="DarkHunterMoon"
+export KBUILD_BUILD_USER="TigerClips1"
+export KBUILD_BUILD_HOST="NethunterBuilderMilanf"
 log "Build metadata: user=${KBUILD_BUILD_USER}, host=${KBUILD_BUILD_HOST}; preserving stock kernel release"
 
 # kamikaonashi 5.4 hardcodes LINUX_COMPILE_BY='kami' / HOST='yourMom' in
@@ -108,17 +138,53 @@ done
 ok "Kernel build successful in ${BUILD_MINS}m ${BUILD_SECS}s"
 ok "Kernel image: ${KERNEL_IMAGE} ($(du -sh "${KERNEL_IMAGE}" | cut -f1))"
 
+# ---------------------------------------------------------------------------
+# Install kernel modules into the output tree.
+# "make modules" only builds the .ko files inside the build directory; they are
+# not placed in a installable location. Running "make modules_install" with
+# INSTALL_MOD_PATH points the installation into ${OUT_DIR}, creating the
+# typical lib/modules/<version>/ hierarchy.
+log "Running make modules_install to install compiled modules"
+pushd "${KERNEL_DIR}" > /dev/null
+make -j"${JOBS}" \
+    O="${OUT_DIR}" \
+    ARCH=arm64 \
+    CROSS_COMPILE=aarch64-linux-gnu- \
+    INSTALL_MOD_PATH="${OUT_DIR}" \
+    modules_install
+popd > /dev/null
+
+# Collect installed .ko files into a flat out/kernel/ directory for easy
+# packaging and visibility.
+log "Collecting installed kernel modules (*.ko) into ${OUT_DIR}/kernel/"
+mkdir -p "${OUT_DIR}/kernel"
+find "${OUT_DIR}" -type f -name "*.ko" -exec cp -v {} "${OUT_DIR}/kernel/" \; || true
+
+# ---------------------------------------------------------------------------
+# Install compiled kernel modules into the output directory.
+# The kernel build produces *.ko files under the output tree (e.g.,
+# ${OUT_DIR}/drivers/... or ${OUT_DIR}/net/... ). The original script only
+# built the modules but never copied them to the final out/kernel/ directory,
+# which caused the expected can-isotp.ko and hlcan.ko files to be missing.
+# We locate all generated .ko files inside ${OUT_DIR} and copy them into
+# out/kernel/ so they are directly visible to the user and can be packaged.
+# This approach works for both in-tree and out-of-tree drivers.
+log "Collecting built kernel modules (*.ko) into ${OUT_DIR}/kernel/"
+mkdir -p "${OUT_DIR}/kernel"
+find "${OUT_DIR}" -type f -name "*.ko" -exec cp -v {} "${OUT_DIR}/kernel/" \; || true
+
+
 # ── Out-of-tree Realtek drivers ──────────────────────────────────────────────
-# Los Makefiles upstream de rtl8188eus / rtl88x2bu están escritos para
-# `make -C $KERNEL M=$PWD modules`. Compilarlos in-tree con kbuild rompe la
-# resolución de includes (drv_types.h, halrf_psd.h, etc). Compilamos cada uno
-# como módulo out-of-tree contra el kernel ya construido.
+# The upstream rtl8188eus / rtl88x2bu Makefiles are written for
+# `make -C $KERNEL M=$PWD modules`. Building them in-tree with kbuild breaks
+# include resolution (drv_types.h, halrf_psd.h, etc). We build each one as an
+# out-of-tree module against the already-built kernel.
 log "Compiling Realtek drivers out-of-tree..."
-# El Makefile upstream de cada driver tiene
+# Each driver's upstream Makefile has
 #   obj-$(CONFIG_RTL8188EU) := $(MODULE_NAME).o
-# bajo `ifneq ($(KERNELRELEASE),)`. Como esos CONFIG_* no están en el .config
-# del kernel (los quitamos para evitar in-tree compile), tenemos que pasarlos
-# inline al sub-make para que kbuild active el target obj-m.
+# under `ifneq ($(KERNELRELEASE),)`. Since those CONFIG_* aren't in the
+# kernel's .config (we removed them to avoid in-tree compilation), we have to
+# pass them inline to the sub-make so kbuild activates the obj-m target.
 declare -A DRIVERS_CFG=(
     [rtl8188eus]="CONFIG_RTL8188EU=m"
     [rtl88x2bu]="CONFIG_RTL8822BU=m"
@@ -133,7 +199,7 @@ for drv in "${!DRIVERS_CFG[@]}"; do
     log "  → ${drv} (${DRIVERS_CFG[$drv]})"
     DRV_LOG="${REPO_ROOT}/out/build-${drv}.log"
 
-    # Limpiar artefactos previos (.ko / .o de un build anterior).
+    # Clean up leftover artifacts (.ko / .o from a previous build).
     pushd "${drv_src}" > /dev/null
     make -C "${OUT_DIR}" \
         M="$(pwd)" \
@@ -166,13 +232,13 @@ for drv in "${!DRIVERS_CFG[@]}"; do
         exit ${DRV_STATUS}
     fi
 
-    # Verificar que produjo al menos un .ko en el source dir
+    # Verify at least one .ko was produced in the source dir
     KO_COUNT=$(find "${drv_src}" -maxdepth 1 -name "*.ko" -type f | wc -l)
     if [[ ${KO_COUNT} -eq 0 ]]; then
         die "${drv}: build reported success but no .ko produced in ${drv_src}"
     fi
-    # Strip debug symbols — sin strip los .ko son ~350MB cada uno (vs ~3MB
-    # strippeados) e inflaban el ZIP final a 200MB+.
+    # Strip debug symbols — unstripped .ko files are ~350MB each (vs ~3MB
+    # stripped) and were inflating the final ZIP to 200MB+.
     while IFS= read -r ko; do
         llvm-strip --strip-debug "${ko}"
     done < <(find "${drv_src}" -maxdepth 1 -name "*.ko" -type f)
@@ -181,5 +247,5 @@ done
 
 ok "All Realtek drivers built out-of-tree"
 
-mark_step_done "07"
-ok "Step 07 complete."
+mark_step_done "06"
+ok "Step 06 complete."

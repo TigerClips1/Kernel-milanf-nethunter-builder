@@ -1,0 +1,23 @@
+--- a/drivers/net/can/Makefile
++++ b/drivers/net/can/Makefile
+@@ -10,6 +10,8 @@
+ obj-y				+= dev/
+ obj-y				+= rcar/
+ obj-y				+= spi/
++obj-$(CONFIG_HLCAN)		+= usb-can-2-module/
++obj-$(CONFIG_CAN_ISOTP)	+= can-isotp/
+ obj-y				+= usb/
+ obj-y				+= softing/
+ 
+ 
+--- a/drivers/net/can/Kconfig
++++ b/drivers/net/can/Kconfig
+@@ -177,6 +177,8 @@
+ source "drivers/net/can/sja1000/Kconfig"
+ source "drivers/net/can/softing/Kconfig"
+ source "drivers/net/can/spi/Kconfig"
++source "drivers/net/can/usb-can-2-module/Kconfig"
++source "drivers/net/can/can-isotp/Kconfig"
+ source "drivers/net/can/usb/Kconfig"
+ 
+ endif

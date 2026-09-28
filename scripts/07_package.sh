@@ -3,9 +3,9 @@ set -euo pipefail
 source "$(dirname "$0")/lib/config.sh"
 source "$(dirname "$0")/lib/utils.sh"
 
-banner "Step 08 — Package Flasheable ZIP"
+banner "Step 07 — Package Flashable ZIP"
 
-is_step_done "08" && { log "Step 08 already done, skipping."; exit 0; }
+is_step_done "07" && { log "Step 07 already done, skipping."; exit 0; }
 
 KERNEL_IMAGE=""
 # Device tree declares BOARD_KERNEL_IMAGE_NAME := Image; flash the raw
@@ -25,11 +25,11 @@ log "Kernel image: ${KERNEL_IMAGE}"
 export PATH="${CLANG_DIR}/bin:${PATH}"
 
 log "Cleaning ${MODULES_DIR} to avoid stale modules from prior builds..."
-# Builds anteriores con distinto LOCALVERSION dejan subdirs como
-# lib/modules/5.4.302-Darkmoon-Reborn/ con .ko de CRCs antiguos. Si no se
-# limpia, el glob de Realtek de abajo los recoge y termina empaquetando
-# modulos que no matchean el kernel del ZIP → "disagrees about version of
-# symbol module_layout" en dmesg al hacer insmod.
+# Previous builds with a different LOCALVERSION leave behind subdirs like
+# lib/modules/5.4.302-Darkmoon-Reborn/ with .ko files carrying stale CRCs.
+# If this isn't cleaned, the Realtek glob below picks them up and ends up
+# packaging modules that don't match the ZIP's kernel → "disagrees about
+# version of symbol module_layout" in dmesg on insmod.
 rm -rf "${MODULES_DIR}"
 mkdir -p "${MODULES_DIR}"
 
@@ -105,9 +105,9 @@ ok "Kernel release: ${KERNEL_RELEASE}"
 
 BUILD_DATE="$(date +%Y%m%d)"
 
-# Los drivers Realtek se compilan out-of-tree en step 07 y los .ko quedan
-# en sources/drivers/<drv>/*.ko. NO buscamos en $MODULES_DIR porque ahí
-# solo están los modulos in-tree del kernel.
+# Realtek drivers are compiled out-of-tree in step 07 and their .ko files
+# end up in sources/drivers/<drv>/*.ko. We do NOT search $MODULES_DIR because
+# that only holds the kernel's in-tree modules.
 REALTEK_MODS=()
 for drv in rtl8188eus rtl88x2bu; do
     while IFS= read -r ko; do
@@ -118,9 +118,9 @@ HAVE_MODS=0
 [[ ${#REALTEK_MODS[@]} -gt 0 ]] && HAVE_MODS=1
 if [[ ${HAVE_MODS} -eq 0 ]]; then
     err "No Realtek .ko found in ${DRIVERS_DIR}/{rtl8188eus,rtl88x2bu}/"
-    err "Step 07 debe haberlos compilado out-of-tree."
-    err "Ejecuta: bash build.sh --clean"
-    die "Aborto: el ZIP no debe distribuirse sin módulos Realtek"
+    err "Step 07 should have compiled them out-of-tree."
+    err "Run: bash build.sh --clean"
+    die "Aborting: the ZIP must not ship without Realtek modules"
 fi
 
 log "Staging Realtek modules as a KernelSU Next module..."
@@ -210,5 +210,5 @@ echo "  adb shell su -c id"
 echo "  adb shell ls /data/adb/modules/nethunter-realtek-drivers/system/lib/modules"
 echo "  adb shell lsmod | grep -E '8188eu|88x2bu'"
 
-mark_step_done "08"
-ok "Step 08 complete."
+mark_step_done "07"
+ok "Step 07 complete."

@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
-# Entry point — orchestrates all build steps end-to-end.
+# Entry point — orchestrates the full milanf NetHunter build pipeline.
+#
+# This script is intentionally dumb and orchestration-only: it resolves the repo
+# root from the script location, loads the shared config/utilities, and then
+# runs the numbered steps in order. That keeps the workflow stable even when it
+# is launched from /tmp or any other directory outside the repo checkout.
+#
 # Usage:
 #   bash build.sh                       # full build (steps 01–08)
 #   bash build.sh --ksu=ksunext         # build with KernelSU Next (default)
@@ -40,12 +46,15 @@ if [[ ${CLEAN} -eq 1 ]]; then
     exit 0
 fi
 
+# The build caches step completion and the current KernelSU mode. If the
+# integration mode or pinned ref changes, the downstream config/build/package
+# steps must be rerun because they depend on the specific hook set and module ABI.
 KSU_STATE="${KSU}:${KSU_NEXT_REF}:manual-hooks-v1"
 PREVIOUS_KSU_STATE=""
 [[ -f "${KSU_STATE_FILE}" ]] && PREVIOUS_KSU_STATE="$(cat "${KSU_STATE_FILE}")"
 if [[ "${PREVIOUS_KSU_STATE}" != "${KSU_STATE}" ]]; then
     log "KernelSU build mode changed; invalidating integration/config/build/package markers..."
-    rm -f "${REPO_ROOT}/.done_04" "${REPO_ROOT}/.done_06" \
+    rm -f "${REPO_ROOT}/.done_04" "${REPO_ROOT}/.done_04_add_drivers" "${REPO_ROOT}/.done_06" \
           "${REPO_ROOT}/.done_07" "${REPO_ROOT}/.done_08"
     printf '%s\n' "${KSU_STATE}" > "${KSU_STATE_FILE}"
 fi

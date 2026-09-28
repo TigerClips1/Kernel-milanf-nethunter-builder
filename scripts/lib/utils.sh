@@ -82,7 +82,38 @@ step_done_file() {
 }
  
 is_step_done() {
-    [[ -f "$(step_done_file "$1")" ]]
+    local step="${1:-}"
+    local marker
+    marker="$(step_done_file "${step}")"
+    [[ -f "${marker}" ]] || return 1
+
+    case "${step}" in
+        04_add_drivers)
+            local driver_file="${DRIVERS_DIR}/rtl8188eus/hal/rtl8188e/usb/usb_halinit.c"
+            if [[ ! -f "${driver_file}" ]] || grep -Eq 'if \(\(IS_FULL_SPEED_USB\(Adapter\)\)\)' "${driver_file}"; then
+                warn "Stale Step 04_add_drivers marker found: ${marker} but the rtl8188eus warning fix is missing; clearing it."
+                rm -f "${marker}"
+                return 1
+            fi
+            ;;
+        05)
+            if [[ ! -f "${OUT_DIR}/.config" ]]; then
+                warn "Stale Step 05 marker found: ${marker} but ${OUT_DIR}/.config is missing; clearing it."
+                rm -f "${marker}"
+                return 1
+            fi
+            ;;
+        06)
+            if [[ ! -f "${OUT_DIR}/arch/arm64/boot/Image.gz" && \
+                  ! -f "${OUT_DIR}/arch/arm64/boot/Image.gz-dtb" && \
+                  ! -f "${OUT_DIR}/arch/arm64/boot/Image" ]]; then
+                warn "Stale Step 06 marker found: ${marker} but no kernel image exists in ${OUT_DIR}; clearing it."
+                rm -f "${marker}"
+                return 1
+            fi
+            ;;
+    esac
+    return 0
 }
 
 mark_step_done() {

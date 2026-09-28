@@ -1,31 +1,32 @@
 #!/usr/bin/env bash
-# Step 05 — Verifica drivers Realtek (compilados out-of-tree en step 07)
+# Step 05 — Verify Realtek drivers (compiled out-of-tree in step 07)
 #
-# Diseño: los Makefiles upstream de rtl8188eus / rtl88x2bu están escritos para
-# compilarse OUT-OF-TREE (`make -C $KERNEL_SRC M=$PWD modules`), no para
-# integración kbuild dentro del árbol del kernel. Intentar meterlos al árbol
-# rompía la resolución de includes con build dir separado (O=).
+# Design note: the upstream rtl8188eus / rtl88x2bu Makefiles are written to be
+# built OUT-OF-TREE (`make -C $KERNEL_SRC M=$PWD modules`), not for kbuild
+# integration inside the kernel tree. Trying to drop them into the tree broke
+# include resolution with a separate build dir (O=).
 #
-# Por eso step 05 ya no copia drivers al kernel tree ni toca Kconfig/Makefile.
-# El kernel se compila SIN ellos, y step 07 los compila como módulos out-of-tree
-# después del kernel. Los .ko quedan en sources/drivers/<drv>/ y step 08 los
-# recoge desde ahí.
+# That's why step 05 no longer copies drivers into the kernel tree or touches
+# Kconfig/Makefile. The kernel is built WITHOUT them, and step 07 compiles
+# them as out-of-tree modules after the kernel. The .ko files end up in
+# sources/drivers/<drv>/ and step 08 collects them from there.
 set -euo pipefail
 source "$(dirname "$0")/lib/config.sh"
 source "$(dirname "$0")/lib/utils.sh"
 
 banner "Step 05 — Verify Realtek Drivers (out-of-tree)"
 
-is_step_done "05" && { log "Step 05 already done, skipping."; exit 0; }
+is_step_done "04_add_drivers" && { log "Step 04 driver verification already done, skipping."; exit 0; }
 
 [[ -d "${KERNEL_DIR}/.git" ]] || die "Kernel source not found. Run step 02 first."
 
 DRIVERS="rtl8188eus rtl88x2bu"
 
-# Limpiar cualquier copia previa que step 05 viejo haya dejado en el árbol
-# del kernel (in-tree). Si seguimos con esos archivos, el build kernel intenta
-# compilarlos in-tree (vía obj-$(CONFIG_RTL...)) y falla porque sus Makefiles
-# no son kbuild-friendly. Borrar y limpiar entradas en parent Kconfig/Makefile.
+# Clean up any leftover copy that an older version of step 05 left in the
+# kernel tree (in-tree). If those files stick around, the kernel build tries
+# to compile them in-tree (via obj-$(CONFIG_RTL...)) and fails because their
+# Makefiles aren't kbuild-friendly. Delete them and clean the entries in the
+# parent Kconfig/Makefile.
 REALTEK_IN_TREE="${KERNEL_DIR}/drivers/net/wireless/realtek"
 for drv in ${DRIVERS}; do
     if [[ -d "${REALTEK_IN_TREE}/${drv}" ]]; then
@@ -33,7 +34,7 @@ for drv in ${DRIVERS}; do
         rm -rf "${REALTEK_IN_TREE}/${drv}"
     fi
 done
-# Limpiar referencias a esos drivers en realtek/Kconfig y realtek/Makefile
+# Clean up references to these drivers in realtek/Kconfig and realtek/Makefile
 if [[ -f "${REALTEK_IN_TREE}/Kconfig" ]]; then
     sed -i '/rtl8188eus\|rtl88x2bu/d' "${REALTEK_IN_TREE}/Kconfig"
 fi
@@ -49,11 +50,26 @@ for drv in ${DRIVERS}; do
     ok "Found: ${drv} → ${src}"
 done
 
-# Aplicar fixes de compat con Clang directamente al source out-of-tree
+# Apply repo-maintained driver patch files to the out-of-tree sources.
+# The qcacld patches are tracked at the repo root and reference files under
+# sources/drivers/...; applying them here ensures the source matches the
+# checked-in compatibility fix instead of silently leaving the old warning in
+# place during the out-of-tree build.
+QCACLD_PATCH="${PATCHES_DIR}/qcacld/001-rtl8188e-usb_halinit-fix.patch"
+if [[ -f "${QCACLD_PATCH}" ]]; then
+    log "Applying rtl8188eus warning fix: $(basename "${QCACLD_PATCH}")"
+    if ! git -C "${REPO_ROOT}" apply --check "${QCACLD_PATCH}" >/dev/null 2>&1; then
+        warn "Patch does not apply cleanly yet — attempting with --reject"
+        git -C "${REPO_ROOT}" apply --reject "${QCACLD_PATCH}" || true
+    fi
+    git -C "${REPO_ROOT}" apply "${QCACLD_PATCH}" || warn "Could not apply ${QCACLD_PATCH}; source may already be patched"
+fi
+
+# Apply Clang compat fixes directly to the out-of-tree source
 log "Applying Clang compat fixes to driver sources..."
 for drv in ${DRIVERS}; do
     drv_mk="${DRIVERS_DIR}/${drv}/Makefile"
-    # GCC-only flags que Clang rechaza
+    # GCC-only flags that Clang rejects
     sed -i '/stringop-overread/d' "${drv_mk}" 2>/dev/null || true
 done
 for drv_c in "${DRIVERS_DIR}"/*/core/rtw_br_ext.c; do
@@ -62,14 +78,14 @@ for drv_c in "${DRIVERS_DIR}"/*/core/rtw_br_ext.c; do
 done
 ok "Clang compat fixes applied"
 
-# rtl8188eus usa kernel_read() que en kernels >= 5.4 está en el namespace
-# privado VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver. Sin
-# importarlo, el módulo carga pero falla con "Unknown symbol kernel_read".
-# (rtl88x2bu upstream ya lo importa.)
+# rtl8188eus uses kernel_read(), which on kernels >= 5.4 lives in the
+# private namespace VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver.
+# Without importing it, the module loads but fails with
+# "Unknown symbol kernel_read". (rtl88x2bu upstream already imports it.)
 RTL8188EUS_OSDEP="${DRIVERS_DIR}/rtl8188eus/os_dep/osdep_service.c"
 if [[ -f "${RTL8188EUS_OSDEP}" ]] && ! grep -q "MODULE_IMPORT_NS" "${RTL8188EUS_OSDEP}"; then
     log "Patching rtl8188eus to import VFS internal namespace..."
-    # Insertar después del último #include
+    # Insert after the last #include
     awk '
         BEGIN { inserted = 0; last_include = 0 }
         /^#include/ { last_include = NR }
@@ -90,5 +106,5 @@ if [[ -f "${RTL8188EUS_OSDEP}" ]] && ! grep -q "MODULE_IMPORT_NS" "${RTL8188EUS_
     ok "Added MODULE_IMPORT_NS to rtl8188eus/os_dep/osdep_service.c"
 fi
 
-mark_step_done "05"
-ok "Step 05 complete (drivers will compile out-of-tree in step 07)."
+mark_step_done "04_add_drivers"
+ok "Step 04 driver verification complete (drivers will compile out-of-tree in step 07)."

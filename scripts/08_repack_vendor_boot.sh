@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+# Rebuild the stock vendor_boot image with the freshly built kernel modules.
+#
+# This is a safety-sensitive step: the ROM vendors a full set of prebuilt modules
+# whose vermagic and .config ABI must match the kernel exactly. The script
+# unpacks the original vendor_boot, stages the rebuilt modules under
+# lib/modules/${KERNEL_RELEASE}, rewrites the ramdisk metadata list, and rewraps
+# the image while preserving the original partition size and DTB.
 set -euo pipefail
 source "$(dirname "$0")/lib/config.sh"
 source "$(dirname "$0")/lib/utils.sh"
@@ -17,7 +24,6 @@ ROOTFS_DIR="${WORK_DIR}/rootfs"
 FLAT_ROOT="${WORK_DIR}/module-root"
 
 [[ -s "${STOCK_VENDOR_BOOT_IMAGE}" ]] || die "Stock vendor_boot image missing: ${STOCK_VENDOR_BOOT_IMAGE}"
-[[ -s "${STOCK_VENDOR_MODULES_LOAD}" ]] || die "ROM modules.load missing: ${STOCK_VENDOR_MODULES_LOAD}; pull /vendor/lib/modules/modules.load or set STOCK_VENDOR_MODULES_LOAD."
 [[ -f "${UNPACK_BOOTIMG}" && -f "${MKBOOTIMG}" ]] || die "AOSP mkbootimg tools missing under ${MKBOOTIMG_DIR}."
 [[ -d "${MODULES_RELEASE_DIR}" ]] || die "Installed modules missing for ${KERNEL_RELEASE}; run modules_install first."
 [[ -s "${MODULES_BUILTIN}" ]] || die "Kernel modules.builtin missing; compile the kernel first."
@@ -45,6 +51,37 @@ case "${RAMDISK_MAGIC}" in
 esac
 ( cd "${ROOTFS_DIR}" && cpio -idm --no-absolute-filenames --quiet < "${WORK_DIR}/ramdisk.cpio" )
 
+# Extract the stock vendor ramdisk metadata automatically from the bundled
+# vendor_boot.img when no ROM file was pre-pulled. This preserves the original
+# module order without requiring adb pull /vendor/lib/modules/modules.load.
+cache_vendor_module_metadata() {
+    local cache_dir="${REPO_ROOT}/out/vendor-repack/vendor-tree/modules"
+    local file candidate
+    mkdir -p "${cache_dir}"
+    for file in modules.load modules.load.recovery modules.blacklist modules.alias modules.dep modules.softdep modules.symbols modules.weakdep; do
+        for candidate in \
+            "${ROOTFS_DIR}/lib/modules/${file}" \
+            "${ROOTFS_DIR}/lib/modules/${KERNEL_RELEASE}/${file}" \
+            "${ROOTFS_DIR}/vendor/lib/modules/${file}" \
+            "${ROOTFS_DIR}/vendor/lib/modules/${KERNEL_RELEASE}/${file}"; do
+            if [[ -s "${candidate}" ]]; then
+                cp -f "${candidate}" "${cache_dir}/${file}"
+                if [[ "${file}" == "modules.load" ]]; then
+                    STOCK_VENDOR_MODULES_LOAD="${cache_dir}/${file}"
+                fi
+                break
+            fi
+        done
+    done
+}
+cache_vendor_module_metadata
+if [[ -n "${STOCK_VENDOR_MODULES_LOAD}" && -s "${STOCK_VENDOR_MODULES_LOAD}" ]]; then
+    :
+else
+    warn "ROM modules.load missing: ${STOCK_VENDOR_MODULES_LOAD:-<unset>}; falling back to the rebuilt vendor module order."
+    warn "To keep the stock ROM order exactly, pull /vendor/lib/modules/modules.load and set STOCK_VENDOR_MODULES_LOAD."
+fi
+
 declare -A STAGED_MODULES=()
 declare -A BUILTIN_MODULES=()
 mapfile -d '' -t MODULE_FILES < <(find "${MODULES_RELEASE_DIR}" -type f -name '*.ko' -print0 | LC_ALL=C sort -z)
@@ -70,6 +107,10 @@ while IFS= read -r module; do
     BUILTIN_MODULES["${module_name//-/_}"]=1
 done < "${MODULES_BUILTIN}"
 
+# Rebuild the module metadata under the staging root so the final ramdisk gets a
+# complete modules.alias/modules.dep tree that matches the kernel release we just
+# built. This is what allows the ROM to load the rebuilt vendor modules without
+# a symbol mismatch at boot time.
 depmod -b "${FLAT_ROOT}" "${KERNEL_RELEASE}" 2> "${WORK_DIR}/depmod.log" \
     || die "depmod failed; see ${WORK_DIR}/depmod.log."
 
@@ -107,7 +148,25 @@ write_load_list() {
     ((${#missing[@]} == 0)) || die "${label} references modules not built or built-in: ${missing[*]}"
 }
 
-write_load_list "${STOCK_VENDOR_MODULES_LOAD}" "${RAMDISK_MODULES}/modules.load" "modules.load"
+if [[ -n "${STOCK_VENDOR_MODULES_LOAD:-}" && -s "${STOCK_VENDOR_MODULES_LOAD}" ]]; then
+    write_load_list "${STOCK_VENDOR_MODULES_LOAD}" "${RAMDISK_MODULES}/modules.load" "modules.load"
+else
+    : > "${RAMDISK_MODULES}/modules.load"
+    find "${RAMDISK_MODULES}" -maxdepth 1 -type f -name '*.ko' -printf '%f\n' \
+        | LC_ALL=C sort > "${RAMDISK_MODULES}/modules.load"
+fi
+# Explicitly add the custom NetHunter CAN modules that are built as modules.
+# These are not always present in the stock vendor modules.load file, so they
+# must be appended to the rebuilt load list to auto-load during boot.
+for extra_mod in hlcan can-isotp; do
+    extra_file="${RAMDISK_MODULES}/${extra_mod}.ko"
+    if [[ -f "${extra_file}" ]]; then
+        if ! grep -qxF "${extra_mod}.ko" "${RAMDISK_MODULES}/modules.load" 2>/dev/null; then
+            printf '%s\n' "${extra_mod}.ko" >> "${RAMDISK_MODULES}/modules.load"
+            log "Auto-load enabled for ${extra_mod}.ko"
+        fi
+    fi
+done
 if [[ -f "${RAMDISK_MODULES}/modules.load.recovery" ]]; then
     write_load_list "${RAMDISK_MODULES}/modules.load.recovery" \
         "${WORK_DIR}/modules.load.recovery" "modules.load.recovery"

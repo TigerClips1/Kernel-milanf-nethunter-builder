@@ -12,6 +12,8 @@
 > **Kernel:** 5.4.302 (nethunter-milanf)
 > **Tested ROM:** lineage-23.2-20260917-nightly
 
+This repo builds a Kali NetHunter-style kernel for the `milanf` device using the Motorola 5.4 QGKI base, custom NetHunter config fragments, and a vendor-boot repack flow designed for flashing alongside a matching LineageOS install.
+
 ---
 
 ## Features
@@ -51,7 +53,13 @@
 git clone https://github.com/TigerClips1/kali-nethunter-milanf-kernel
 cd kali-nethunter-milanf-kernel
 bash build.sh
-# ZIP → out/zip/nethunter-milanf-5.4.302-<date>.zip
+# ZIP → out/zip/<zipname>.zip
+```
+
+The scripts resolve paths from the repo root rather than the current shell directory, so they can be launched from any `$PWD` with an absolute path:
+
+```bash
+bash /path/to/kali-nethunter-milanf-kernel/build.sh
 ```
 
 ### Build options
@@ -69,9 +77,9 @@ bash build.sh --clean            # reset all steps
 | `SKIP_CLONE` | `` | Set to skip re-cloning repos |
 | `KERNEL_BRANCH` | `lineage-23.2` | Kernel source branch |
 | `LINEAGEOS_ROOT` | `/mnt/steamgames/Games/los/android/lineage` | LineageOS checkout used to select the matching compiler |
-| `DEVICE_CONFIG` | `/home/tigerclips1/config` | Running-device kernel config used as the build baseline when present |
-| `STOCK_BOOT_IMAGE` | required | Matching LineageOS milanf `boot.img`; used to preserve the Android ramdisk instead of a recovery ramdisk |
-| `STOCK_VENDOR_BOOT_IMAGE` | `$HOME/Downloads/los-stock/vendor_boot.img` | Matching stock vendor_boot v3 image used as the header and DTB base |
+| `DEVICE_CONFIG` | `config/milanf_device.config` | Running-device kernel config used as the build baseline when present |
+| `STOCK_BOOT_IMAGE` | repo-local `Required_los_image-nethunter/boot.img` | Matching LineageOS milanf `boot.img` used to preserve the Android ramdisk instead of a recovery ramdisk |
+| `STOCK_VENDOR_BOOT_IMAGE` | repo-local `Required_los_image-nethunter/vendor_boot.img` | Matching stock vendor_boot v3 image used as the header and DTB base |
 | `STOCK_VENDOR_MODULES_LOAD` | `out/vendor-repack/vendor-tree/modules/modules.load` | Ordered module list from the matching ROM's `/vendor/lib/modules/modules.load` |
 | `JOBS` | `$(nproc)` | Parallel jobs |
 
@@ -84,13 +92,14 @@ STOCK_VENDOR_BOOT_IMAGE=/path/to/matching/LineageOS/vendor_boot.img \
 bash build.sh --step=package
 ```
 
-The package step emits `out/zip/vendor_boot-nethunter-milanf.img` and bundles
+The package step emits a custom vendor-boot image under `out/zip/` and bundles
 it into the AnyKernel ZIP. The installer flashes it to the same verified slot
 as the kernel. It replaces the stock first-stage ramdisk modules with the
-rebuilt module set, keeps the ROM's module load order, and preserves the stock
-v3 header and DTB.
-If the module list is not already extracted, obtain it from the matching ROM
-with `adb pull /vendor/lib/modules/modules.load` and set
+rebuilt module set, keeps the ROM's module load order when present, and
+preserves the stock v3 header and DTB. If the ROM's modules.load file is not
+already available, the repack step automatically generates a fallback module
+list from the rebuilt vendor tree and prints a warning. For a perfect stock
+order, pull `/vendor/lib/modules/modules.load` from the matching ROM and set
 `STOCK_VENDOR_MODULES_LOAD` to that file.
 
 ---

@@ -36,39 +36,11 @@ SLOT="_b";
 BLOCK="/dev/block/bootdevice/by-name/boot_b";
 
 ## ── Banner + educational-use warning ────────────────────────────────────────
-ui_print " ";
-ui_print "================================================";
-ui_print "                                                ";
-ui_print "   ___    _ _              _   _    _           ";
-ui_print "  | __|__| | |__  __ _ ___| |_(_)__| |__ _      ";
-ui_print "  | _|/ _\` | '_ \\/ _\` (_-<  _| / _\` / _\` |     ";
-ui_print "  |___\\__,_|_.__/\\__,_/__/\\__|_\\__,_\\__,_|     ";
-ui_print "                                                ";
-ui_print "    >>  D A R K   H U N T E R   M O O N  <<     ";
-ui_print "        ~ Reborn Edition · KernelSU Next ~     ";
-ui_print "                                                ";
-ui_print "    NetHunter Kernel  ·  Linux 5.4.302          ";
-ui_print "    Motorola G Stylus 5G 2022 (milanf)         ";
-ui_print "                                                ";
-ui_print "    Root: KernelSU Next built into this kernel. ";
-ui_print "                                                ";
-ui_print "================================================";
-ui_print " ";
-ui_print "  /!\\  AVISO  /  WARNING                        ";
-ui_print "                                                ";
-ui_print "  Este kernel se distribuye EXCLUSIVAMENTE      ";
-ui_print "  con fines educativos y de investigacion en    ";
-ui_print "  seguridad. El uso contra sistemas o redes     ";
-ui_print "  sin autorizacion expresa es ILEGAL. El        ";
-ui_print "  autor (Edbastida) no se responsabiliza del    ";
-ui_print "  mal uso de este software.                     ";
-ui_print "                                                ";
-ui_print "  Provided for EDUCATIONAL and SECURITY         ";
-ui_print "  RESEARCH purposes only. Unauthorized use      ";
-ui_print "  against any system or network is illegal.     ";
-ui_print "  The author assumes no liability for misuse.   ";
-ui_print "                                                ";
-ui_print "================================================";
+# Keep the splash text in a dedicated file so the installer remains readable and
+# future banner tweaks do not disturb the flashing logic below.
+while IFS= read -r line; do
+  ui_print "$line";
+done < "$AKHOME/banner.txt"
 ui_print " ";
 
 ## AnyKernel install

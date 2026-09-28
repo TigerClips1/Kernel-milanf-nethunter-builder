@@ -77,6 +77,81 @@ fetch_aosp_clang() {
     return 1
 }
 
+fetch_git_clang() {
+    # ZyCromerZ/Clang branches don't contain the compiler — each branch has a
+    # Clang-*-link.txt pointing at the real tarball on GitHub Releases. Clone
+    # the branch just to read that URL, then download+extract like AOSP.
+    local branch="${CLANG_BRANCH}"
+    local clone_dir
+    clone_dir="$(mktemp -d)"
+    log "Cloning ${CLANG_REPO} (branch: ${branch}) for its release link..."
+    if ! git clone --depth=1 -b "${branch}" "${CLANG_REPO}" "${clone_dir}" >/dev/null 2>&1; then
+        warn "Could not clone ${CLANG_REPO} at branch ${branch}"
+        rm -rf "${clone_dir}"
+        return 1
+    fi
+
+    local link_file
+    link_file="$(find "${clone_dir}" -maxdepth 1 -iname 'Clang-main-link.txt' | head -n 1)"
+    [[ -n "${link_file}" ]] || link_file="$(find "${clone_dir}" -maxdepth 1 -iname 'Clang-*-link.txt' | sort | tail -n 1)"
+    if [[ -z "${link_file}" ]]; then
+        warn "No Clang-*-link.txt found on branch ${branch}"
+        rm -rf "${clone_dir}"
+        return 1
+    fi
+    local url
+    url="$(tr -d '[:space:]' < "${link_file}")"
+    rm -rf "${clone_dir}"
+    if [[ -z "${url}" ]]; then
+        warn "Empty download URL in link file on branch ${branch}"
+        return 1
+    fi
+
+    mkdir -p "$(dirname "${CLANG_DIR}")"
+    local tarball="$(dirname "${CLANG_DIR}")/clang-git-fallback.tar.gz"
+    log "Downloading git-mirrored clang release: ${url}"
+    rm -f "${tarball}"
+    if ! curl -fL --retry 3 --connect-timeout 20 -o "${tarball}" "${url}"; then
+        warn "Download failed: ${url}"
+        return 1
+    fi
+
+    rm -rf "${CLANG_DIR}"
+    mkdir -p "${CLANG_DIR}"
+    if ! tar -xzf "${tarball}" -C "${CLANG_DIR}"; then
+        warn "Could not extract ${tarball}"
+        rm -f "${tarball}"
+        rm -rf "${CLANG_DIR}"
+        return 1
+    fi
+    rm -f "${tarball}"
+
+    local found
+    found="$(find "${CLANG_DIR}" -path '*/bin/clang' \( -type f -o -type l \) | head -n 1 || true)"
+    if [[ -z "${found}" ]]; then
+        warn "No bin/clang in git-fallback archive. Top-level contents: $(ls "${CLANG_DIR}" | head -n 10 | tr '\n' ' ')"
+        rm -rf "${CLANG_DIR}"
+        return 1
+    fi
+
+    local root
+    root="$(dirname "$(dirname "${found}")")"
+    if [[ "${root}" != "${CLANG_DIR}" ]]; then
+        rm -rf "${CLANG_DIR}.tmp"
+        mv "${root}" "${CLANG_DIR}.tmp"
+        rm -rf "${CLANG_DIR}"
+        mv "${CLANG_DIR}.tmp" "${CLANG_DIR}"
+    fi
+
+    if is_valid_clang21 "${CLANG_DIR}/bin/clang"; then
+        ok "Downloaded git-mirrored clang (branch: ${branch}) to ${CLANG_DIR}"
+        return 0
+    fi
+    warn "clang found but rejected by version check: $("${CLANG_DIR}/bin/clang" --version 2>&1 | head -n 1)"
+    rm -rf "${CLANG_DIR}"
+    return 1
+}
+
 log "--- Clang toolchain ---"
 if [[ -x "${CLANG_DIR}/bin/clang" ]] && is_valid_clang21 "${CLANG_DIR}/bin/clang"; then
     log "AOSP clang toolchain found at ${CLANG_DIR}/bin/clang"
@@ -99,8 +174,11 @@ elif CLANG_BIN="$(detect_clang)"; then
 elif fetch_aosp_clang; then
     CLANG_BIN="${CLANG_DIR}/bin/clang"
     log "Using downloaded AOSP clang toolchain: ${CLANG_BIN}"
+elif fetch_git_clang; then
+    CLANG_BIN="${CLANG_DIR}/bin/clang"
+    log "Using git-mirrored clang toolchain: ${CLANG_BIN}"
 else
-    die "No valid AOSP clang 20/21 toolchain found. Download failed and a compatible local toolchain is not installed."
+    die "No valid clang 20/21 toolchain found. AOSP download failed, git-mirror fallback failed, and no compatible local toolchain is installed."
 fi
 
 log "--- Kernel source ---"
@@ -110,9 +188,10 @@ else
     if [[ -d "${KERNEL_DIR}/.git" ]]; then
         warn "Removing existing kernel dir — invalidating downstream steps 03-08"
         rm -rf "${KERNEL_DIR}"
-        # Reclonar el kernel borra los patches aplicados y los drivers Realtek
-        # copiados al árbol. Sin invalidar estos markers, los steps se saltan
-        # y el kernel se compila incompleto (módulos Realtek faltantes).
+        # Re-cloning the kernel wipes out the applied patches and the Realtek
+        # drivers copied into the tree. Without invalidating these markers,
+        # the steps get skipped and the kernel builds incomplete (missing
+        # Realtek modules).
         rm -f "$(step_done_file 03)" "$(step_done_file 04)" \
               "$(step_done_file 05)" "$(step_done_file 06)" \
               "$(step_done_file 07)" "$(step_done_file 08)"
@@ -151,6 +230,13 @@ for drv in rtl8188eus rtl88x2bu rtl8192eu rtl8812au rtl8188fu; do
     url="${DRIVER_REPOS[$drv]}"
     branch="${DRIVER_BRANCHES[$drv]:-}"
     clone_or_skip "${DRIVERS_DIR}/${drv}" "${url}" "${branch}"
+done
+
+log "--- Kernel CAN drivers ---"
+for drv in usb-can-2-module can-isotp; do
+    url="${KERNEL_CAN_DRIVERS[$drv]}"
+    [[ -n "${url}" ]] || die "No clone URL configured for kernel CAN driver: ${drv}"
+    clone_or_skip "${KERNEL_DIR}/drivers/net/can/${drv}" "${url}"
 done
 
 mark_step_done "02"

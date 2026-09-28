@@ -1,5 +1,5 @@
 diff --git a/drivers/staging/qcacld-3.0/core/wma/src/wma_frame_inject.c b/drivers/staging/qcacld-3.0/core/wma/src/wma_frame_inject.c
-index e59bb7bcd..a57771408 100644
+index e59bb7bcd..4e6f6b07a 100644
 --- a/drivers/staging/qcacld-3.0/core/wma/src/wma_frame_inject.c
 +++ b/drivers/staging/qcacld-3.0/core/wma/src/wma_frame_inject.c
 @@ -287,7 +287,7 @@ wma_injection_ensure_tx_vdev(tp_wma_handle wma,
@@ -14,14 +14,15 @@ index e59bb7bcd..a57771408 100644
 @@ -402,7 +402,7 @@ wma_injection_ensure_tx_vdev(tp_wma_handle wma,
  	vstart.channel.cfreq1     = chanfreq;
  	vstart.channel.cfreq2     = 0;
- 	/* 2.4 GHz → WMI_HOST_MODE_11G, 5 GHz → WMI_HOST_MODE_11A */
+-	/* 2.4 GHz → WMI_HOST_MODE_11G, 5 GHz → WMI_HOST_MODE_11A */
 -	vstart.channel.phy_mode   = (chanfreq < 4000) ? WMI_HOST_MODE_11G : WMI_HOST_MODE_11A;
++	/* 2.4 GHz → WLAN_PHYMODE_11G, 5 GHz → WLAN_PHYMODE_11A */
 +	vstart.channel.phy_mode   = (chanfreq < 4000) ? WLAN_PHYMODE_11G : WLAN_PHYMODE_11A;
  	vstart.channel.maxregpower = 20;
  	vstart.channel.maxpower    = 20;
  	vstart.beacon_interval    = 0;
 diff --git a/drivers/staging/qcacld-3.0/core/wma/src/wma_utils.c b/drivers/staging/qcacld-3.0/core/wma/src/wma_utils.c
-index b807a2e3a..5abbd5cf2 100644
+index b807a2e3a..0d4c38882 100644
 --- a/drivers/staging/qcacld-3.0/core/wma/src/wma_utils.c
 +++ b/drivers/staging/qcacld-3.0/core/wma/src/wma_utils.c
 @@ -4567,7 +4567,6 @@ QDF_STATUS wma_mon_mlme_vdev_stop_send(struct vdev_mlme_obj *vdev_mlme,

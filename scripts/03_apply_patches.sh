@@ -11,6 +11,7 @@ is_step_done "03" && { log "Step 03 already done, skipping."; exit 0; }
 
 apply_patch() {
     local patch_file="$1"
+    local strict="${2:-true}"
     local patch_name
     patch_name="$(basename "${patch_file}")"
 
@@ -20,32 +21,41 @@ apply_patch() {
         return 0
     fi
 
-    # Marker patches: contienen solo comentarios documentando que el cambio
-    # ya está integrado upstream (ej: 0001-hid-gadget.patch en kamikaonashi).
-    # Sin lineas 'diff --git' no hay nada que aplicar.
+    # Marker patches: contain only comments documenting that the change is
+    # already integrated upstream (e.g. 0001-hid-gadget.patch on kamikaonashi).
+    # Without 'diff --git' lines, there's nothing to apply.
     if ! grep -q '^diff --git' "${patch_file}"; then
         log "Skipping ${patch_name} (marker/empty patch — no diff payload)"
         return 0
     fi
 
     log "Applying: ${patch_name}"
-    # Si ya está aplicado (reverse-check pasa), saltar idempotentemente.
+    # If already applied (reverse-check passes), skip idempotently.
     if git -C "${KERNEL_DIR}" apply --reverse --check "${patch_file}" 2>/dev/null; then
         warn "${patch_name} already applied — skipping"
         return 0
     fi
-    # -C1 relaja el contexto a 1 línea — necesario para la serie Madara
-    # qcacld 5.4.302 que arrastra contexto OPLUS no presente en milanf.
+    # -C1 relaxes the context to 1 line — needed for the Madara qcacld
+    # 5.4.302 series, which carries OPLUS context not present on milanf.
     local ctx_flag="-C1"
-    git -C "${KERNEL_DIR}" apply --check ${ctx_flag} "${patch_file}" 2>/dev/null || {
+    local patch_check
+    if ! patch_check=$(git -C "${KERNEL_DIR}" apply --check ${ctx_flag} "${patch_file}" 2>&1); then
+        if [[ "${strict}" == "false" ]] && grep -Eq 'No such file or directory|patch failed: .*No such file or directory' <<<"${patch_check}"; then
+            warn "${patch_name} targets files not present in this kernel tree; skipping optional patch."
+            return 0
+        fi
         warn "${patch_name} does not apply cleanly — attempting with --reject"
-        git -C "${KERNEL_DIR}" apply --reject ${ctx_flag} "${patch_file}" || {
+        if ! git -C "${KERNEL_DIR}" apply --reject ${ctx_flag} "${patch_file}"; then
+            if [[ "${strict}" == "false" ]]; then
+                warn "Optional patch ${patch_name} failed; continuing without it."
+                return 1
+            fi
             err "Patch ${patch_name} failed. Check ${KERNEL_DIR}/*.rej files."
             exit 1
-        }
+        fi
         ok "Applied (with rejects): ${patch_name}"
         return 0
-    }
+    fi
     git -C "${KERNEL_DIR}" apply ${ctx_flag} "${patch_file}"
     check_error "Failed to apply ${patch_name}"
     ok "Applied: ${patch_name}"
@@ -58,14 +68,41 @@ log "--- QCACLD-3.0 injection patches ---"
 # qdf_create_work(0,...) + debugfs init pattern blocks this 5.4 kernel.
 # apply_patch "${PATCHES_DIR}/qcacld/0001-milanf-frame-inject.patch"
 #
-# Madara273 series para kernel 5.4.302 — base kimocoder + 7 fixes (drift
-# de signatures 5.4 + vendor_command_policy + des_chan->ch_freq + WMA_LOG
+# Madara273 series for kernel 5.4.302 — kimocoder base + 7 fixes (5.4
+# signature drift + vendor_command_policy + des_chan->ch_freq + WMA_LOG
 # migration + duplicate get_channel + hdd_disable_monitor_mode signature).
-# Aplica con -C1 porque arrastra contexto OPLUS_FEATURE_WIFI_DCS_SWITCH
-# que no existe en milanf. Reemplaza al patch minimal anterior.
-for p in "${PATCHES_DIR}/qcacld/*.patch"; do
-    apply_patch "$p"
-done
+# Applied with -C1 because it carries OPLUS_FEATURE_WIFI_DCS_SWITCH context
+# that doesn't exist on milanf. Replaces the earlier minimal patch.
+shopt -s nullglob
+qcacld_patches=("${PATCHES_DIR}/qcacld"/*.patch)
+if (( ${#qcacld_patches[@]} == 0 )); then
+    log "No QCACLD patches present; skipping injection step."
+else
+    # The upstream injection patch creates the new WMA frame-injection file.
+    # The porting compatibility patch must run after it, because it fixes
+    # legacy symbols (WMI_HOST_MODE_* / del_bss_resp) inside that newly-added
+    # file for older Qualcomm trees. Applying it first fails since the file
+    # does not exist yet.
+    for p in "${qcacld_patches[@]}"; do
+        if [[ "$(basename "$p")" == "upstream-add-qcacld-3.0-injection-5.4.patch" ]]; then
+            apply_patch "$p" true
+        fi
+    done
+
+    for p in "${qcacld_patches[@]}"; do
+        if [[ "$(basename "$p")" == "porting.patch" ]]; then
+            apply_patch "$p" true
+        fi
+    done
+
+    for p in "${qcacld_patches[@]}"; do
+        base="$(basename "$p")"
+        if [[ "$base" == "upstream-add-qcacld-3.0-injection-5.4.patch" || "$base" == "porting.patch" ]]; then
+            continue
+        fi
+        apply_patch "$p" false || true
+    done
+fi
 
 log "--- Kernel build compatibility patches ---"
 for p in "${PATCHES_DIR}/kernel"/*.patch; do

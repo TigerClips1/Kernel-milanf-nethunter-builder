@@ -1,4 +1,8 @@
 #!/system/bin/sh
+# USB role recovery helper for the milanf NetHunter kernel.
+# It keeps the USB controller in the correct data-role state while Android is
+# running and a data cable is connected, which helps restore DWC3 USB data
+# access when the firmware or Android config leaves the peripheral role set.
 
 MODE=/sys/devices/platform/soc/4e00000.ssusb/mode
 DATA=/sys/devices/platform/soc/4e00000.ssusb/usb_data_enabled
