@@ -78,6 +78,8 @@ install_nethunter_module() {
     return 0;
   fi;
   set_perm_recursive 0 0 0755 0644 "$DEST";
+  [ -f "$DEST/action.sh" ] && set_perm 0 0 0755 "$DEST/action.sh";
+  [ -f "$DEST/load.sh" ] && set_perm 0 0 0755 "$DEST/load.sh";
   [ -f "$DEST/service.sh" ] && set_perm 0 0 0755 "$DEST/service.sh";
   ui_print " " "USB Wi-Fi driver module installed.";
 }

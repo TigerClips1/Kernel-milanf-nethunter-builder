@@ -85,6 +85,7 @@ if grep -Eq '(^|/)\.backup/\.magisk$|(^|/)overlay\.d/sbin/magisk\.xz$|(^|/)init\
 fi
 ok "No Magisk ramdisk markers found"
 cp "${AK_VARIANT}" "${AK3_WORK}/anykernel.sh"
+cp "${ANYKERNEL_DIR}/banner.txt" "${AK3_WORK}/banner.txt"
 cp "${STOCK_BOOT_IMAGE}" "${AK3_WORK}/stock_boot.img"
 log "Using anykernel variant: $(basename "${AK_VARIANT}")"
 log "Using stock boot image as ramdisk/header base: ${STOCK_BOOT_IMAGE}"
