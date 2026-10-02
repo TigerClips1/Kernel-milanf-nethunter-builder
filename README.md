@@ -97,7 +97,13 @@ The final ZIP and `vendor_boot-nethunter-milanf.img` are written to `out/zip/`.
 The main build log is `out/build-main.log`; kernel and external-driver logs are
 written under `out/` as well.
 
-### Automated GitHub releases
+### GitHub CI and releases
+Every branch push and pull request runs validation checks for shell and Python
+syntax, duplicate active assignments within each config file, patch-file
+format, and the required boot images. A successful validation is followed by a
+full kernel build. The Actions run also keeps the flashable ZIP and checksum as
+a 30-day build artifact.
+
 Push a version tag such as `v1.0.0` to build the flashable ZIP from that tag's
 commit and publish it, with `SHA256SUMS`, in GitHub Releases:
 

@@ -2,8 +2,11 @@ name: Build NetHunter kernel
 
 on:
   push:
+    branches:
+      - "**"
     tags:
       - "v*"
+  pull_request:
   workflow_dispatch:
     inputs:
       release_tag:
@@ -19,7 +22,53 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  validate:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Check shell syntax
+        run: |
+          bash -n build.sh
+          while IFS= read -r -d '' script; do
+            bash -n "$script"
+          done < <(find scripts anykernel -type f -name '*.sh' -print0)
+
+      - name: Check Python syntax
+        run: python3 -m py_compile tools/*.py
+
+      - name: Check config fragments for duplicate assignments
+        run: |
+          for config in config/*.config; do
+            awk '
+              /^[[:space:]]*CONFIG_[[:alnum:]_]+=/ {
+                key = $0
+                sub(/=.*/, "", key)
+                if (seen[key]++) {
+                  printf "%s:%d: duplicate assignment for %s\\n", FILENAME, FNR, key > "/dev/stderr"
+                  failed = 1
+                }
+              }
+              END { exit failed }
+            ' "$config"
+          done
+
+      - name: Check patch file syntax
+        run: |
+          for patch in patches/*/*.patch; do
+            if grep -q '^diff --git ' "$patch"; then
+              git apply --stat "$patch" >/dev/null
+            fi
+          done
+
+      - name: Check required boot images
+        run: |
+          test -s Required_los_image-nethunter/boot.img
+          test -s Required_los_image-nethunter/vendor_boot.img
+
   build:
+    needs: validate
     runs-on: ubuntu-22.04
     timeout-minutes: 360
     env:
