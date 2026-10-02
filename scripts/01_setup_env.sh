@@ -15,7 +15,7 @@ if sudo -n true 2>/dev/null; then
         git ccache automake flex lzop bison gperf build-essential zip curl \
         zlib1g-dev g++-multilib libssl-dev bc libc6-dev-i386 lib32ncurses5-dev \
         device-tree-compiler python3 libxml2-utils bzip2 libbz2-dev \
-        squashfs-tools make unzip binutils-aarch64-linux-gnu \
+        squashfs-tools make unzip cpio lz4 kmod binutils-aarch64-linux-gnu \
         libelf-dev pahole clang lld llvm
     check_error "Failed to install apt dependencies"
 else

@@ -1,0 +1,87 @@
+name: Build NetHunter kernel
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing tag to build and publish (leave empty for a build artifact only)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nethunter-kernel-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+    env:
+      JOBS: 2
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
+          fetch-depth: 0
+
+      - name: Free runner disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/share/boost
+          df -h /
+
+      - name: Build flashable kernel ZIP
+        run: |
+          bash build.sh --clean
+          bash build.sh
+
+      - name: Generate checksum
+        run: |
+          shopt -s nullglob
+          zips=(out/zip/*.zip)
+          if (( ${#zips[@]} != 1 )); then
+            printf 'Expected exactly one flashable ZIP, found %s\n' "${#zips[@]}" >&2
+            exit 1
+          fi
+          sha256sum "${zips[@]}" > out/zip/SHA256SUMS
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: milanf-nethunter-kernel
+          path: |
+            out/zip/*.zip
+            out/zip/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != ''
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: milanf-nethunter-kernel
+          path: release-assets
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag || github.ref_name }}
+          name: NetHunter kernel ${{ inputs.release_tag || github.ref_name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            release-assets/*.zip
+            release-assets/SHA256SUMS

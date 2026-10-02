@@ -236,7 +236,23 @@ log "--- Kernel CAN drivers ---"
 for drv in usb-can-2-module can-isotp; do
     url="${KERNEL_CAN_DRIVERS[$drv]}"
     [[ -n "${url}" ]] || die "No clone URL configured for kernel CAN driver: ${drv}"
-    clone_or_skip "${KERNEL_DIR}/drivers/net/can/${drv}" "${url}"
+    submodule_path="drivers/net/can/${drv}"
+    submodule_dir="${KERNEL_DIR}/${submodule_path}"
+    if git -C "${KERNEL_DIR}" ls-files --stage -- "${submodule_path}" \
+        | awk '$1 == "160000" { found = 1 } END { exit !found }'; then
+        if [[ -n "${SKIP_CLONE:-}" ]]; then
+            log "Skipping (SKIP_CLONE set): ${submodule_path}"
+        else
+            git -C "${KERNEL_DIR}" submodule update --init -- "${submodule_path}"
+            check_error "Failed to initialize CAN submodule ${submodule_path}"
+        fi
+    else
+        if [[ -n "${SKIP_CLONE:-}" && ! -d "${submodule_dir}" ]]; then
+            die "CAN submodule missing with SKIP_CLONE set: ${submodule_path}"
+        fi
+        git -C "${KERNEL_DIR}" submodule add "${url}" "${submodule_path}"
+        check_error "Failed to add CAN submodule ${submodule_path}"
+    fi
 done
 
 ISOTP_UAPI_SRC="${KERNEL_DIR}/drivers/net/can/can-isotp/include/uapi/linux/can/isotp.h"

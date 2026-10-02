@@ -38,6 +38,12 @@ This repo builds a Kali NetHunter-style kernel for the `milanf` device using the
 - LTO Clang ThinLTO
 - Built-in root via KernelSU Next's legacy driver for this Linux 5.4 kernel
 
+### CAN, SDR & NFS
+- SocketCAN protocols and virtual/serial CAN interfaces, with in-tree USB, SPI, and platform controller drivers configured as modules
+- HLCAN USB analyzer and CAN ISO-TP are integrated as optional modules; the packaging step adds them to the vendor module load list when built
+- SDR support for AirSpy, HackRF, Mirics MSi2500, and RTL2832U-based receivers
+- NFS client support for v2/v3/v4 and NFS server support for v3/v4
+
 ---
 
 ## Build
@@ -50,8 +56,8 @@ This repo builds a Kali NetHunter-style kernel for the `milanf` device using the
 
 ### Quick start
 ```bash
-git clone https://github.com/TigerClips1/kali-nethunter-milanf-kernel
-cd kali-nethunter-milanf-kernel
+git clone https://github.com/TigerClips1/Kernel-milanf-nethunter-builder.git
+cd Kernel-milanf-nethunter-builder
 bash build.sh
 # ZIP → out/zip/<zipname>.zip
 ```
@@ -59,7 +65,7 @@ bash build.sh
 The scripts resolve paths from the repo root rather than the current shell directory, so they can be launched from any `$PWD` with an absolute path:
 
 ```bash
-bash /path/to/kali-nethunter-milanf-kernel/build.sh
+bash /path/to/Kernel-milanf-nethunter-builder/build.sh
 ```
 
 ### Build options
@@ -68,14 +74,49 @@ bash build.sh                    # full build with KernelSU Next
 bash build.sh --step=configure   # integrate KernelSU Next + configure
 bash build.sh --step=compile     # configure and compile
 bash build.sh --step=package     # configure, compile, and package
-bash build.sh --clean            # reset all steps
+bash build.sh --clean            # clear completion markers to force steps to run again
 ```
+
+The full build runs these stages in order:
+
+1. Install/check host build dependencies and select or download Clang 21.
+2. Fetch the kernel, toolchain, AnyKernel3, Realtek driver sources, and CAN driver submodules; stage the CAN-ISOTP UAPI header.
+3. Apply the kernel and QCACLD compatibility/injection patches.
+4. Fetch and integrate the pinned KernelSU Next revision; verify the out-of-tree Realtek sources.
+5. Merge the device config with the NetHunter and KernelSU fragments, then resolve Kconfig dependencies.
+6. Build the kernel and in-tree modules, then build RTL8188EUS and RTL88x2BU out-of-tree.
+7. Reinstall modules, repack `vendor_boot.img` (step 08), and create the flashable AnyKernel ZIP.
+
+The `--step` shortcuts do not run the initial environment, source-clone, or
+patch stages; use them only when those inputs are already prepared. `--clean`
+removes completion markers and the cached KernelSU mode, but does not directly
+delete downloaded sources or `out/` files. A normal full build may re-clone the
+kernel source; set `SKIP_CLONE=1` to reuse existing source checkouts.
+
+The final ZIP and `vendor_boot-nethunter-milanf.img` are written to `out/zip/`.
+The main build log is `out/build-main.log`; kernel and external-driver logs are
+written under `out/` as well.
+
+### Automated GitHub releases
+Push a version tag such as `v1.0.0` to build the flashable ZIP from that tag's
+commit and publish it, with `SHA256SUMS`, in GitHub Releases:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+You can also run **Build NetHunter kernel** from the Actions tab. Leave
+`release_tag` empty to keep the build as an Actions artifact, or enter an
+existing tag to build and publish that tag. The boot and vendor_boot images
+used by packaging are tracked under `Required_los_image-nethunter/`; no
+repository secrets are currently required.
 
 ### Environment variables
 | Variable | Default | Description |
 |---|---|---|
 | `SKIP_CLONE` | `` | Set to skip re-cloning repos |
-| `KERNEL_BRANCH` | `lineage-23.2` | Kernel source branch |
+| `KERNEL_BRANCH` | `nethunter` | Preferred kernel source branch; the clone script tries its fallback branches if needed |
 | `LINEAGEOS_ROOT` | `/mnt/steamgames/Games/los/android/lineage` | LineageOS checkout used to select the matching compiler |
 | `DEVICE_CONFIG` | `config/milanf_device.config` | Running-device kernel config used as the build baseline when present |
 | `STOCK_BOOT_IMAGE` | repo-local `Required_los_image-nethunter/boot.img` | Matching LineageOS milanf `boot.img` used to preserve the Android ramdisk instead of a recovery ramdisk |
@@ -124,7 +165,8 @@ use the module's action in KernelSU Next Manager to load them on demand.
 The installer repacks the matching clean LineageOS boot image and always
 targets `boot_b` plus `vendor_boot_b`, regardless of the slot TWRP reports. It
 checks that both B partitions exist and that the vendor_boot image fits before
-flashing either one.
+flashing either one. After flashing, ensure slot B is selected for the next
+boot; the installer does not choose the active slot for you.
 
 1. Boot into TWRP
 2. Install → select ZIP → Swipe to Flash. The installer writes the paired kernel and vendor_boot to slot B.
