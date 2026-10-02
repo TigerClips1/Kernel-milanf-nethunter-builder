@@ -21,11 +21,7 @@ fi
 # 5.4 QGKI port. When we reset the upstream KernelSU Next checkout, we remove
 # and reapply them explicitly so the script remains idempotent without hiding
 # any unrelated local edits in the upstream tree.
-KSU_COMPAT_PATCH="${REPO_ROOT}/patches/kernelsu/0001-5.4-use-backported-nofault-api.patch"
-[[ -f "${KSU_COMPAT_PATCH}" ]] || die "KernelSU 5.4 compatibility patch is missing: ${KSU_COMPAT_PATCH}"
-if git -C "${KSU_NEXT_DIR}" apply --reverse --check "${KSU_COMPAT_PATCH}" 2>/dev/null; then
-    git -C "${KSU_NEXT_DIR}" apply --reverse "${KSU_COMPAT_PATCH}"
-fi
+
 
 if [[ -n "$(git -C "${KSU_NEXT_DIR}" status --porcelain --untracked-files=normal)" ]]; then
     log "KernelSU Next checkout already contains the project’s repo-local compatibility patches; continuing."
@@ -41,14 +37,12 @@ fi
 if ! git -C "${KSU_NEXT_DIR}" cat-file -e "${KSU_NEXT_REF}^{commit}" 2>/dev/null; then
     git -C "${KSU_NEXT_DIR}" fetch origin "${KSU_NEXT_REF}"
 fi
-git -C "${KSU_NEXT_DIR}" checkout --detach "${KSU_NEXT_REF}"
+# Only move HEAD when needed; -f drops our previously applied compat patch, which is reapplied below.
+if [[ "$(git -C "${KSU_NEXT_DIR}" rev-parse HEAD)" != "${KSU_NEXT_REF}" ]]; then
+    git -C "${KSU_NEXT_DIR}" checkout -f --detach "${KSU_NEXT_REF}"
+fi
 [[ "$(git -C "${KSU_NEXT_DIR}" rev-parse HEAD)" == "${KSU_NEXT_REF}" ]] \
     || die "KernelSU Next checkout does not match pinned ref ${KSU_NEXT_REF}"
-if ! git -C "${KSU_NEXT_DIR}" apply --reverse --check "${KSU_COMPAT_PATCH}" 2>/dev/null; then
-    git -C "${KSU_NEXT_DIR}" apply --check "${KSU_COMPAT_PATCH}" \
-        || die "KernelSU 5.4 compatibility patch no longer applies to ${KSU_NEXT_REF}"
-    git -C "${KSU_NEXT_DIR}" apply "${KSU_COMPAT_PATCH}"
-fi
 
 DRIVERS_DIR_KERNEL="${KERNEL_DIR}/drivers"
 KSU_LINK="${DRIVERS_DIR_KERNEL}/kernelsu"
@@ -86,20 +80,6 @@ else
         || die "KernelSU manual-hook patch no longer applies to ${KERNEL_DIR}"
     git -C "${KERNEL_DIR}" apply "${KSU_HOOK_PATCH}"
     ok "KernelSU manual hooks applied to the 5.4 kernel source."
-fi
-
-# Older 5.4 manual-hook builds can omit the init.rc runtime flag in the
-# non-kprobe path. Restore the bool in the actual KernelSU upstream checkout
-# because the kernel tree links this file in from the KSU repository.
-KSU_RUNTIME_FIX_PATCH="${REPO_ROOT}/patches/kernelsu/0003-5.4-fix-ksu-init-rc-hook.patch"
-[[ -f "${KSU_RUNTIME_FIX_PATCH}" ]] || die "KernelSU init-rc-hook fix patch is missing: ${KSU_RUNTIME_FIX_PATCH}"
-if git -C "${KSU_NEXT_DIR}" apply --reverse --check "${KSU_RUNTIME_FIX_PATCH}" 2>/dev/null; then
-    log "KernelSU init.rc hook fix already applied in ${KSU_NEXT_DIR}."
-else
-    git -C "${KSU_NEXT_DIR}" apply --check "${KSU_RUNTIME_FIX_PATCH}" \
-        || die "KernelSU init.rc hook fix no longer applies to ${KSU_NEXT_DIR}"
-    git -C "${KSU_NEXT_DIR}" apply "${KSU_RUNTIME_FIX_PATCH}"
-    ok "KernelSU init.rc hook fix applied to the KernelSU source."
 fi
 
 ok "KernelSU Next source pinned at ${KSU_NEXT_REF} and wired into drivers/"
