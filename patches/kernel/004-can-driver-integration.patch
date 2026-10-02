@@ -4,7 +4,7 @@
  obj-y				+= dev/
  obj-y				+= rcar/
  obj-y				+= spi/
-+obj-$(CONFIG_HLCAN)		+= usb-can-2-module/
++obj-$(CONFIG_hlcan)		+= usb-can-2-module/
 +obj-$(CONFIG_CAN_ISOTP)	+= can-isotp/
  obj-y				+= usb/
  obj-y				+= softing/

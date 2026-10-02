@@ -239,5 +239,10 @@ for drv in usb-can-2-module can-isotp; do
     clone_or_skip "${KERNEL_DIR}/drivers/net/can/${drv}" "${url}"
 done
 
+ISOTP_UAPI_SRC="${KERNEL_DIR}/drivers/net/can/can-isotp/include/uapi/linux/can/isotp.h"
+ISOTP_UAPI_DST="${KERNEL_DIR}/include/uapi/linux/can/isotp.h"
+[[ -f "${ISOTP_UAPI_SRC}" ]] || die "CAN-ISOTP UAPI header missing: ${ISOTP_UAPI_SRC}"
+install -D "${ISOTP_UAPI_SRC}" "${ISOTP_UAPI_DST}"
+
 mark_step_done "02"
 ok "Step 02 complete."
