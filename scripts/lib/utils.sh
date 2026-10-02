@@ -102,6 +102,13 @@ is_step_done() {
                 rm -f "${marker}"
                 return 1
             fi
+            if ! grep -q '^CONFIG_KSU=y$' "${OUT_DIR}/.config" || \
+               ! grep -q '^CONFIG_KSU_MANUAL_HOOK=y$' "${OUT_DIR}/.config" || \
+               grep -q '^CONFIG_KSU_SYSCALL_TABLE_HOOK=y$' "${OUT_DIR}/.config"; then
+                warn "Stale Step 05 marker found: ${marker} but KernelSU hook options are not in the expected manual-hook state; clearing it."
+                rm -f "${marker}"
+                return 1
+            fi
             ;;
         06)
             if [[ ! -f "${OUT_DIR}/arch/arm64/boot/Image.gz" && \

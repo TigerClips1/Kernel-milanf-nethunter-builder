@@ -47,14 +47,15 @@ if [[ ${CLEAN} -eq 1 ]]; then
 fi
 
 # The build caches step completion and the current KernelSU mode. If the
-# integration mode or pinned ref changes, the downstream config/build/package
-# steps must be rerun because they depend on the specific hook set and module ABI.
-KSU_STATE="${KSU}:${KSU_NEXT_REF}:manual-hooks-v1"
+# integration mode, pinned ref, or validation policy changes, downstream
+# config/build/package steps must be rerun because they depend on the specific
+# hook set and module ABI.
+KSU_STATE="${KSU}:${KSU_NEXT_REF}:manual-hooks-v2"
 PREVIOUS_KSU_STATE=""
 [[ -f "${KSU_STATE_FILE}" ]] && PREVIOUS_KSU_STATE="$(cat "${KSU_STATE_FILE}")"
 if [[ "${PREVIOUS_KSU_STATE}" != "${KSU_STATE}" ]]; then
     log "KernelSU build mode changed; invalidating integration/config/build/package markers..."
-    rm -f "${REPO_ROOT}/.done_04" "${REPO_ROOT}/.done_04_add_drivers" "${REPO_ROOT}/.done_06" \
+    rm -f "${REPO_ROOT}/.done_04" "${REPO_ROOT}/.done_04_add_drivers" "${REPO_ROOT}/.done_05" "${REPO_ROOT}/.done_06" \
           "${REPO_ROOT}/.done_07" "${REPO_ROOT}/.done_08"
     printf '%s\n' "${KSU_STATE}" > "${KSU_STATE_FILE}"
 fi
