@@ -1,0 +1,17 @@
+--- a/drivers/net/can/usb-can-2-module/hlcan.c
++++ b/drivers/net/can/usb-can-2-module/hlcan.c
+@@ -586,12 +586,11 @@
+ 
+ 
+ static int hlcan_do_set_mode(struct net_device *dev, enum can_mode mode){
+-	int ret;
+ 	struct slcan *sl = netdev_priv(dev);
+ 
+ 	switch (mode) {
+ 	case CAN_MODE_START:
+ 		sl->can.state = CAN_STATE_ERROR_ACTIVE;
+-		return ret;
++		return 0;
+ 	default:
+ 		return -EOPNOTSUPP;
+ 	}

@@ -85,6 +85,18 @@ log "Step 3: Resolving dependencies (olddefconfig)..."
     echo "CONFIG_CAN_KVASER_USB=m" >> "${OUT_DIR}/.config"
     echo "CONFIG_CAN_PEAK_USB=m" >> "${OUT_DIR}/.config"
     echo "CONFIG_CAN_UCAN=m" >> "${OUT_DIR}/.config"
+
+    # KSU_MANUAL_HOOK's Kconfig default is "y if !KPROBES", so on this QGKI
+    # tree (CONFIG_KPROBES=y) olddefconfig silently falls back to the
+    # KSU_KPROBES_HOOK choice — which this repo's 5.4 manual-hook patches
+    # (0002/0003) are not written for, breaking root grant. Force manual hook
+    # explicitly and re-resolve so the kprobes/syscall-table choice clears.
+    sed -i -e '/^CONFIG_KSU_MANUAL_HOOK=/d' -e '/^# CONFIG_KSU_MANUAL_HOOK is not set/d' \
+           -e '/^CONFIG_KSU_KPROBES_HOOK=/d' -e '/^CONFIG_KSU_SYSCALL_TABLE_HOOK=/d' \
+           "${OUT_DIR}/.config"
+    echo "CONFIG_KSU_MANUAL_HOOK=y" >> "${OUT_DIR}/.config"
+    make O="${OUT_DIR}" ARCH=arm64 "${KCC[@]}" olddefconfig
+    check_error "olddefconfig (KSU manual-hook enforcement) failed"
 popd > /dev/null
 
 log "Verifying critical config options..."
@@ -106,6 +118,8 @@ check_config "CONFIG_BT_HCIBTUSB" "y"
 check_config "CONFIG_MODULE_SIG" "n"
 check_config "CONFIG_KSU" "y"
 check_config "CONFIG_KSU_MANUAL_HOOK" "y"
+[[ "$(grep '^CONFIG_KSU_MANUAL_HOOK=' "${CONFIG_FILE}" | cut -d= -f2)" == "y" ]] \
+    || die "CONFIG_KSU_MANUAL_HOOK did not stick — KernelSU would fall back to kprobes hook and fail root grant."
 if grep -q '^CONFIG_KSU_SYSCALL_TABLE_HOOK=y' "${CONFIG_FILE}"; then
     die "KernelSU syscall-table mode must stay disabled for this 5.4 QGKI port."
 fi

@@ -23,8 +23,8 @@ apply_patch() {
 
     # Marker patches: contain only comments documenting that the change is
     # already integrated upstream (e.g. 0001-hid-gadget.patch on kamikaonashi).
-    # Without 'diff --git' lines, there's nothing to apply.
-    if ! grep -q '^diff --git' "${patch_file}"; then
+    # Without 'diff --git' or plain '--- a/' lines, there's nothing to apply.
+    if ! grep -Eq '^(diff --git|--- a/)' "${patch_file}"; then
         log "Skipping ${patch_name} (marker/empty patch — no diff payload)"
         return 0
     fi
@@ -51,7 +51,7 @@ apply_patch() {
                 return 1
             fi
             err "Patch ${patch_name} failed. Check ${KERNEL_DIR}/*.rej files."
-            exit 1
+            return 1
         fi
         ok "Applied (with rejects): ${patch_name}"
         return 0
@@ -60,6 +60,15 @@ apply_patch() {
     check_error "Failed to apply ${patch_name}"
     ok "Applied: ${patch_name}"
 }
+
+log "--- Kernel build compatibility patches ---"
+# Applied before the QCACLD block: these (including the CAN driver
+# integration) must land even if the QCACLD injection patch below dies on a
+# dirty/partially-applied tree from a previous run.
+for p in "${PATCHES_DIR}/kernel"/*.patch; do
+    [[ -f "${p}" ]] || continue
+    apply_patch "${p}" || die "Required kernel patch $(basename "${p}") failed to apply."
+done
 
 log "--- QCACLD-3.0 injection patches ---"
 # Loukious frame-inject DISABLED on milanf: hdd_open_adapter() now calls
@@ -85,13 +94,16 @@ else
     # does not exist yet.
     for p in "${qcacld_patches[@]}"; do
         if [[ "$(basename "$p")" == "upstream-add-qcacld-3.0-injection-5.4.patch" ]]; then
-            apply_patch "$p" true
+            # Non-fatal: a prior run may have already (partially) applied this
+            # via --reject, which makes both the forward and reverse checks
+            # fail on rerun even though the tree already carries the change.
+            apply_patch "$p" true || warn "$(basename "$p") failed to (re)apply — continuing since the tree likely already carries it from a previous run."
         fi
     done
 
     for p in "${qcacld_patches[@]}"; do
         if [[ "$(basename "$p")" == "porting.patch" ]]; then
-            apply_patch "$p" true
+            apply_patch "$p" true || warn "$(basename "$p") failed to (re)apply — continuing since the tree likely already carries it from a previous run."
         fi
     done
 
@@ -103,11 +115,6 @@ else
         apply_patch "$p" false || true
     done
 fi
-
-log "--- Kernel build compatibility patches ---"
-for p in "${PATCHES_DIR}/kernel"/*.patch; do
-    [[ -f "${p}" ]] && apply_patch "${p}"
-done
 
 mark_step_done "03"
 ok "Step 03 complete."

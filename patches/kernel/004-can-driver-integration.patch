@@ -1,3 +1,4 @@
+diff --git a/drivers/net/can/Makefile b/drivers/net/can/Makefile
 --- a/drivers/net/can/Makefile
 +++ b/drivers/net/can/Makefile
 @@ -10,6 +10,8 @@
@@ -10,6 +11,7 @@
  obj-y				+= softing/
  
  
+diff --git a/drivers/net/can/Kconfig b/drivers/net/can/Kconfig
 --- a/drivers/net/can/Kconfig
 +++ b/drivers/net/can/Kconfig
 @@ -177,6 +177,8 @@

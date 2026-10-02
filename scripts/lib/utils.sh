@@ -88,9 +88,17 @@ is_step_done() {
     [[ -f "${marker}" ]] || return 1
 
     case "${step}" in
+        03)
+            local can_makefile="${KERNEL_DIR}/drivers/net/can/Makefile"
+            if [[ ! -f "${can_makefile}" ]] || ! grep -q 'can-isotp/' "${can_makefile}" || ! grep -q 'usb-can-2-module/' "${can_makefile}"; then
+                warn "Stale Step 03 marker found: ${marker} but the CAN driver integration patch is missing; clearing it."
+                rm -f "${marker}"
+                return 1
+            fi
+            ;;
         04_add_drivers)
             local driver_file="${DRIVERS_DIR}/rtl8188eus/hal/rtl8188e/usb/usb_halinit.c"
-            if [[ ! -f "${driver_file}" ]] || grep -Eq 'if \(\(IS_FULL_SPEED_USB\(Adapter\)\)\)' "${driver_file}"; then
+            if [[ ! -f "${driver_file}" ]] || grep -Eq 'if \(\(IS_FULL_SPEED_USB\(Adapter\)\)[[:space:]]*$' "${driver_file}"; then
                 warn "Stale Step 04_add_drivers marker found: ${marker} but the rtl8188eus warning fix is missing; clearing it."
                 rm -f "${marker}"
                 return 1
