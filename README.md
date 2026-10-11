@@ -123,7 +123,7 @@ repository secrets are currently required.
 |---|---|---|
 | `SKIP_CLONE` | `` | Set to skip re-cloning repos |
 | `KERNEL_BRANCH` | `nethunter` | Preferred kernel source branch; the clone script tries its fallback branches if needed |
-| `LINEAGEOS_ROOT` | `/mnt/steamgames/Games/los/android/lineage` | LineageOS checkout used to select the matching compiler |
+| `LINEAGEOS_ROOT` | `your/android/lineage` source tree from the docs | LineageOS checkout used to select the matching compiler |
 | `DEVICE_CONFIG` | `config/milanf_device.config` | Running-device kernel config used as the build baseline when present |
 | `STOCK_BOOT_IMAGE` | repo-local `Required_los_image-nethunter/boot.img` | Matching LineageOS milanf `boot.img` used to preserve the Android ramdisk instead of a recovery ramdisk |
 | `STOCK_VENDOR_BOOT_IMAGE` | repo-local `Required_los_image-nethunter/vendor_boot.img` | Matching stock vendor_boot v3 image used as the header and DTB base |
