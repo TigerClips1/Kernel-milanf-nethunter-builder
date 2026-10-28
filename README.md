@@ -1,4 +1,4 @@
-<h1 align="center">Kali_nethunter kernel builder</h1>
+<h1 align="center">Kali nethunter kernel builder</h1>
 <p align="center"><i>NetHunter Kernel for Motorola Moto G Stylus 5G 2022 (milanf)</i></p>
 
 <p align="center">
