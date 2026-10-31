@@ -29,7 +29,7 @@ case "${KSU}" in
     *) echo "[config] Invalid KSU='${KSU}' — this milanf build supports ksunext" >&2; exit 1 ;;
 esac
 KSU_NEXT_REPO="${KSU_NEXT_REPO:-https://github.com/KernelSU-Next/KernelSU-Next.git}"
-KSU_NEXT_REF="${KSU_NEXT_REF:-4c706b5938665866ebe16944a481a7b91e3396af}"
+KSU_NEXT_REF="${KSU_NEXT_REF:-8af3d4fec33be32fa5d3f8dae4f380fac45bf2cd}"
 KSU_NEXT_DIR="${REPO_ROOT}/sources/KernelSU-Next"
 KSU_STATE_FILE="${REPO_ROOT}/.ksu_mode"
 # Prefer the exact Clang toolchain identified by the running device config.
